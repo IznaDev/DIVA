@@ -3,7 +3,7 @@
 echo "Running pre-commit checks..."
 
 # Aller dans le dossier backend
-cd backend
+cd ../../backend
 
 # Compilation
 echo "Compiling contracts..."
