@@ -1,6 +1,7 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "@nomicfoundation/hardhat-ignition";
+import "solidity-coverage";
 import * as dotenv from "dotenv";
 dotenv.config();
 
