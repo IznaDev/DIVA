@@ -14,7 +14,7 @@ export async function deployDivaToken() {
 export async function deployMockUSDC() {
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
     const mockUSDC = await MockUSDC.deploy();
-    return { mockUSDC };
+    return { mockUSDC, owner: mockUSDC.owner() };
 }
 
 
