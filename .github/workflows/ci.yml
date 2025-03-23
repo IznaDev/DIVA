@@ -1,0 +1,64 @@
+name: DIVA backend CI
+
+on:
+  push:
+    branches: [main] 
+    paths:
+      - 'backend/**'
+  pull_request:
+    branches: [main] 
+    paths:
+      - 'backend/**'
+
+jobs:
+  test:
+    name: Unit Contract Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Compile contracts
+        working-directory: backend
+        run: npx hardhat compile
+
+      - name: Run tests
+        working-directory: backend
+        run: npx hardhat test
+
+      - name: Run code coverage
+        working-directory: backend
+        run: npx hardhat coverage
+
+  lint:
+    name: Solidity Linting
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Run Solhint
+        working-directory: backend
+        run: npx solhint 'contracts/*.sol'

@@ -1,12 +1,21 @@
 {
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "hardhat": "^2.22.19"
+    "hardhat": "^2.22.19",
+    "solhint": "^5.0.5",
+    "solidity-coverage": "^0.8.14"
   },
   "dependencies": {
     "@chainlink/contracts": "0.8.0",
     "@nomicfoundation/hardhat-ignition": "^0.15.10",
     "@openzeppelin/contracts": "^4.9.3",
     "dotenv": "^16.4.7"
+  },
+  "scripts": {
+    "test": "hardhat test",
+    "coverage": "hardhat coverage",
+    "lint": "solhint 'contracts/**/*.sol'",
+    "lint:fix": "solhint 'contracts/**/*.sol' --fix",
+    "compile": "hardhat compile"
   }
 }
