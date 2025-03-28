@@ -2,10 +2,11 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract MockUSDC is ERC20, Ownable {
-    constructor() ERC20("MockUSDC", "MUSDC") {
+contract MockUSDC is ERC20, Ownable, ERC20Permit {
+    constructor() ERC20("MockUSDC", "MUSDC") ERC20Permit("MockUSDC") {
         transferOwnership(msg.sender);
     }
 

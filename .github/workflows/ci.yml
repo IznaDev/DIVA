@@ -31,15 +31,15 @@ jobs:
 
       - name: Compile contracts
         working-directory: backend
-        run: npx hardhat compile
+        run: npx hardhat compile --network hardhat
 
       - name: Run tests
         working-directory: backend
-        run: npx hardhat test
+        run: npx hardhat test --network hardhat
 
       - name: Run code coverage
         working-directory: backend
-        run: npx hardhat coverage
+        run: npx hardhat coverage --network hardhat
 
   lint:
     name: Solidity Linting
