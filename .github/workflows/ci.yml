@@ -39,7 +39,7 @@ jobs:
 
       - name: Run code coverage
         working-directory: backend
-        run: npx hardhat coverage --network hardhat
+        run: npx hardhat coverage
 
   lint:
     name: Solidity Linting
