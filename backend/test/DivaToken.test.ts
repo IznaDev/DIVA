@@ -39,8 +39,8 @@ describe("DivaToken contract tests:", function () {
         })
 
         it("should assign initial supply of 100 million DIVA to the hardcoded addresses", async function () {
-            // Vérifier uniquement les 3 premières adresses selon la constante I_ADDRESSES_LENGTH
-            const hardcodedAddresses = foundersList.slice(0, 3);
+            // Vérifier uniquement les 4 premières adresses selon la constante I_ADDRESSES_LENGTH
+            const hardcodedAddresses = foundersList.slice(0, 4);
 
             for (const address of hardcodedAddresses) {
                 const balanceAddress = await divaToken.balanceOf(address);
@@ -49,8 +49,8 @@ describe("DivaToken contract tests:", function () {
         })
 
         it("should have the correct total supply", async function () {
-            // 3 adresses avec 100 millions de tokens chacune
-            const expectedTotalSupply = INITIAL_MINT_AMOUNT * BigInt(3);
+            // 4 adresses avec 100 millions de tokens chacune
+            const expectedTotalSupply = INITIAL_MINT_AMOUNT * BigInt(4);
             expect(await divaToken.totalSupply()).to.equal(expectedTotalSupply);
         })
 
@@ -223,9 +223,9 @@ describe("DivaToken contract tests:", function () {
             // Vérifier que le propriétaire du contrat DivaToken est bien le contrat Voting
             const divaTokenOwner = await divaToken.owner();
             const votingAddress = await voting.getAddress();
-            
+
             expect(divaTokenOwner).to.equal(votingAddress);
-            
+
             // Vérifier que le contrat Voting a les permissions nécessaires
             // en vérifiant que le contrat DivaToken est bien détenu par le contrat Voting
             const ownershipTransferred = divaTokenOwner === votingAddress;

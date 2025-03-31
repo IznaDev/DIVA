@@ -7,9 +7,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract DivaToken is ERC20, Ownable {
     uint8 constant CONVERSION_RATE = 10;
-    uint256 constant I_ADDRESSES_LENGTH = 3;
+    uint256 constant I_ADDRESSES_LENGTH = 4;
 
-    address[4] foundersList = [
+    address[I_ADDRESSES_LENGTH] foundersList = [
         0x1234567890123456789012345678901234567890,
         0x2345678901234567890123456789012345678901,
         0x3456789012345678901234567890123456789012,

@@ -26,19 +26,24 @@ describe("MockUSDC contract tests:", function () {
             expect(await mockUSDC.decimals()).to.equal(6);
         })
 
-        it("should start with zero total supply", async function () {
-            expect(await mockUSDC.totalSupply()).to.equal(0);
+        it("should have initial total supply", async function () {
+            // 1000 pour le déployeur + 1000 pour chacune des 10 adresses de test
+            expect(await mockUSDC.totalSupply()).to.equal(BigInt(11000 * 10 ** 18));
         })
     })
 
     describe("Minting tests", function () {
         it("should allow owner to mint tokens", async function () {
-            const ownerBalance = await mockUSDC.balanceOf(owner);
-            expect(ownerBalance).to.equal(0);
-            const amount = ethers.parseUnits("100", 6); // 100 USDC with 6 decimals
+            // Vérifions le solde initial du propriétaire
+            const initialBalance = await mockUSDC.balanceOf(owner);
+            
+            // Mintons 1000 tokens avec 18 décimales
+            const amount = BigInt(1000 * 10 ** 18);
             await mockUSDC.mint(owner, amount);
+            
+            // Vérifions que le solde final est correct
             const finalBalance = await mockUSDC.balanceOf(owner);
-            expect(finalBalance).to.equal(amount);
+            expect(finalBalance).to.equal(initialBalance + amount);
         })
 
         it("should increase total supply when tokens are minted", async function () {
