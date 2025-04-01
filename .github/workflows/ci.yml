@@ -2,11 +2,11 @@ name: DIVA backend CI
 
 on:
   push:
-    branches: [main] 
+    branches: [main, develop-frontend] 
     paths:
       - 'backend/**'
   pull_request:
-    branches: [main] 
+    branches: [main, develop-frontend] 
     paths:
       - 'backend/**'
 

@@ -86,14 +86,27 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
         emit TransferDivas(msg.sender, _divaAmount);
     }
 
-    function createPost(string calldata _contentUrl) external {
+    function createPost(
+        string calldata _contentUrl,
+        uint256 _amount,
+        uint256 _deadline,
+        uint8 _v,
+        bytes32 _r,
+        bytes32 _s
+    ) external nonReentrant {
         require(
             votingRegistry.isRegistered(msg.sender),
             "Voter not registered"
         );
-        require(
-            divaToken.balanceOf(msg.sender) > POST_STAKE_AMOUNT,
-            "Insufficient Diva balance"
+
+        IERC20Permit(address(divaToken)).permit(
+            msg.sender,
+            address(this),
+            _amount,
+            _deadline,
+            _v,
+            _r,
+            _s
         );
 
         require(
@@ -111,26 +124,36 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
     function vote(
         uint256 _postId,
         PostManager.VoteOption _choice,
-        uint256 _stakeAmount
+        uint256 _amount,
+        uint256 _deadline,
+        uint8 _v,
+        bytes32 _r,
+        bytes32 _s
     ) external nonReentrant {
         require(
             votingRegistry.isRegistered(msg.sender),
             "Voter not registered"
         );
-        require(_stakeAmount >= MIN_STAKE_AMOUNT, "Stake too low");
-        require(_stakeAmount <= MAX_STAKE_AMOUNT, "Stake too high");
+        require(_amount >= MIN_STAKE_AMOUNT, "Stake too low");
+        require(_amount <= MAX_STAKE_AMOUNT, "Stake too high");
 
-        require(
-            divaToken.balanceOf(msg.sender) >= _stakeAmount,
-            "Insufficient Diva balance"
+        // Utiliser permit pour approuver les tokens DIVA
+        IERC20Permit(address(divaToken)).permit(
+            msg.sender,
+            address(this),
+            _amount,
+            _deadline,
+            _v,
+            _r,
+            _s
         );
 
         require(
-            divaToken.transferFrom(msg.sender, address(this), _stakeAmount),
+            divaToken.transferFrom(msg.sender, address(this), _amount),
             "Transfer failed"
         );
 
-        postManager.setVote(_postId, _choice, _stakeAmount, msg.sender);
+        postManager.setVote(_postId, _choice, _amount, msg.sender);
     }
 
     function withdrawVote(uint256 _postId) external nonReentrant {

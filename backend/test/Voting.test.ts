@@ -41,7 +41,8 @@ describe("Voting contract tests:", function () {
         });
 
     })
-    let domain: TypedDataDomain;
+    let mockUSDCDomain: TypedDataDomain;
+    let divaTokenDomain: TypedDataDomain;
     let types: Record<string, Array<TypedDataField>>;
     let voter1Wallet: any;
     let voter2Wallet: any;
@@ -54,13 +55,21 @@ describe("Voting contract tests:", function () {
         const privateKey2 = "0x42c1095e998f97a5a0044966f0945389ae9e86dae88b7a8412f4603c6b78690d";
         voter2Wallet = new ethers.Wallet(privateKey2, ethers.provider);
 
-        // Configurer le domaine EIP-712 pour les signatures
+        // Configurer le domaine EIP-712 pour les signatures de MockUSDC
         const chainId = (await ethers.provider.getNetwork()).chainId;
-        domain = {
+        mockUSDCDomain = {
             name: "MockUSDC",
             version: "1",
             chainId,
             verifyingContract: await mockUSDC.getAddress()
+        };
+
+        // Configurer le domaine EIP-712 pour les signatures de DivaToken
+        divaTokenDomain = {
+            name: "DivaToken",
+            version: "1",
+            chainId,
+            verifyingContract: await divaToken.getAddress()
         };
 
         // Définir les types pour le permit
@@ -97,7 +106,7 @@ describe("Voting contract tests:", function () {
                 deadline: deadline
             };
 
-            const signature = await voter1Wallet.signTypedData(domain, types, value);
+            const signature = await voter1Wallet.signTypedData(mockUSDCDomain, types, value);
             const { v, r, s } = ethers.Signature.from(signature);
 
             const initialDivaBalance = await divaToken.balanceOf(voter1Wallet.address);
@@ -132,7 +141,7 @@ describe("Voting contract tests:", function () {
                 deadline: deadline
             };
 
-            const signature = await voter1Wallet.signTypedData(domain, types, value);
+            const signature = await voter1Wallet.signTypedData(mockUSDCDomain, types, value);
             const { v, r, s } = ethers.Signature.from(signature);
 
             // La transaction devrait échouer car le deadline est dans le passé
@@ -163,7 +172,7 @@ describe("Voting contract tests:", function () {
                 deadline: deadline
             };
 
-            const signature = await voter1Wallet.signTypedData(domain, types, value);
+            const signature = await voter1Wallet.signTypedData(mockUSDCDomain, types, value);
             const { v, r, s } = ethers.Signature.from(signature);
 
             const conversionRate = await divaToken.conversionRate();
@@ -214,8 +223,8 @@ describe("Voting contract tests:", function () {
             deadline: deadline
         };
 
-        const signature = await voter1Wallet.signTypedData(domain, types, value);
-        const signature2 = await voter2Wallet.signTypedData(domain, types, value2);
+        const signature = await voter1Wallet.signTypedData(mockUSDCDomain, types, value);
+        const signature2 = await voter2Wallet.signTypedData(mockUSDCDomain, types, value2);
         const { v, r, s } = ethers.Signature.from(signature);
 
         await voting.connect(voter1Wallet).purchaseDivas(
@@ -238,34 +247,102 @@ describe("Voting contract tests:", function () {
 
     describe(" Posts creating tests:", function () {
         it("should revert when a user unregistred attempt to post something", async function () {
-            await expect(voting.connect(voter1).createPost(url)).to.be.revertedWith("Voter not registered");
-        })
-        it("should revert when a registred user attempt to post something with an insufficient balance", async function () {
+            const amount = parseEther("5");
+            const deadline = Math.floor(Date.now() / 1000) + 3600;
+            const nonce = await divaToken.nonces(voter1.address);
 
-            const votingAddress = await voting.getAddress();
-            await divaToken.connect(voter1Wallet).approve(votingAddress, parseEther("4"));
+            const value = {
+                owner: voter1.address,
+                spender: await voting.getAddress(),
+                value: amount,
+                nonce: nonce,
+                deadline: deadline
+            };
 
-            await expect(voting.connect(voter1Wallet).createPost(url)).to.rejectedWith("ERC20: insufficient allowance");
+            const signature = await voter1.signTypedData(divaTokenDomain, types, value);
+            const { v, r, s } = ethers.Signature.from(signature);
+
+            await expect(voting.connect(voter1).createPost(url, amount, deadline, v, r, s))
+                .to.be.revertedWith("Voter not registered");
         })
+
+        it("should revert when a registred user attempt to post something with an insufficient allowance", async function () {
+            const amount = parseEther("4"); // Montant insuffisant
+            const deadline = Math.floor(Date.now() / 1000) + 3600;
+            const nonce = await divaToken.nonces(voter1Wallet.address);
+
+            const value = {
+                owner: voter1Wallet.address,
+                spender: await voting.getAddress(),
+                value: amount,
+                nonce: nonce,
+                deadline: deadline
+            };
+
+            const signature = await voter1Wallet.signTypedData(divaTokenDomain, types, value);
+            const { v, r, s } = ethers.Signature.from(signature);
+
+            await expect(voting.connect(voter1Wallet).createPost(url, amount, deadline, v, r, s))
+                .to.be.rejectedWith("ERC20: insufficient allowance");
+        })
+
         it("shoul not revert whan a voter post something with a sufficient balance", async function () {
+            const amount = parseEther("5");
+            const deadline = Math.floor(Date.now() / 1000) + 3600;
+            const nonce = await divaToken.nonces(voter1Wallet.address);
 
-            const votingAddress = await voting.getAddress();
-            await divaToken.connect(voter1Wallet).approve(votingAddress, parseEther("5"))
-            await expect(voting.connect(voter1Wallet).createPost(url)).to.be.not.reverted;
+            const value = {
+                owner: voter1Wallet.address,
+                spender: await voting.getAddress(),
+                value: amount,
+                nonce: nonce,
+                deadline: deadline
+            };
+
+            const signature = await voter1Wallet.signTypedData(divaTokenDomain, types, value);
+            const { v, r, s } = ethers.Signature.from(signature);
+
+            await expect(voting.connect(voter1Wallet).createPost(url, amount, deadline, v, r, s))
+                .to.be.not.reverted;
         })
+
         it("should revert when a voter attempt to post an url already posted", async function () {
+            const amount = parseEther("5");
+            const deadline = Math.floor(Date.now() / 1000) + 3600;
+            const nonce = await divaToken.nonces(voter1Wallet.address);
 
-            const votingAddress = await voting.getAddress();
-            await divaToken.connect(voter1Wallet).approve(votingAddress, parseEther("5"))
+            const value = {
+                owner: voter1Wallet.address,
+                spender: await voting.getAddress(),
+                value: amount,
+                nonce: nonce,
+                deadline: deadline
+            };
 
-            await divaToken.connect(voter1Wallet).approve(votingAddress, parseEther("5"))
-            await expect(voting.connect(voter1Wallet).createPost(url)).to.be.revertedWith("URL already exists");
+            const signature = await voter1Wallet.signTypedData(divaTokenDomain, types, value);
+            const { v, r, s } = ethers.Signature.from(signature);
 
+            await expect(voting.connect(voter1Wallet).createPost(url, amount, deadline, v, r, s))
+                .to.be.revertedWith("URL already exists");
         })
+
         it("should emit a PostCreated event when a voter success to create a post", async function () {
-            const votingAddress = await voting.getAddress();
-            await divaToken.connect(voter1Wallet).approve(votingAddress, parseEther("5"))
-            await expect(voting.connect(voter1Wallet).createPost(url2))
+            const amount = parseEther("5");
+            const deadline = Math.floor(Date.now() / 1000) + 3600;
+            const nonce = await divaToken.nonces(voter1Wallet.address);
+
+            const value = {
+                owner: voter1Wallet.address,
+                spender: await voting.getAddress(),
+                value: amount,
+                nonce: nonce,
+                deadline: deadline
+            };
+
+            const signature = await voter1Wallet.signTypedData(divaTokenDomain, types, value);
+            const { v, r, s } = ethers.Signature.from(signature);
+
+            await expect(voting.connect(voter1Wallet).createPost(url2, amount, deadline, v, r, s))
                 .to.emit(postManager, "PostCreated");
         })
         it("should set the post ID by hashing the url", async function () {
@@ -281,53 +358,148 @@ describe("Voting contract tests:", function () {
         })
     })
     describe("Vote tests:", function () {
+        before(async function () {
+            // S'assurer qu'un post existe avant de tester les votes
+            // Utiliser une URL différente pour éviter le conflit
+            const voteTestUrl = "https://example.com/vote-test-post";
+            const amount = parseEther("5");
+            const deadline = Math.floor(Date.now() / 1000) + 3600;
+            const nonce = await divaToken.nonces(voter1Wallet.address);
+
+            const value = {
+                owner: voter1Wallet.address,
+                spender: await voting.getAddress(),
+                value: amount,
+                nonce: nonce,
+                deadline: deadline
+            };
+
+            const signature = await voter1Wallet.signTypedData(divaTokenDomain, types, value);
+            const { v, r, s } = ethers.Signature.from(signature);
+
+            // Créer un post pour les tests de vote
+            await voting.connect(voter1Wallet).createPost(voteTestUrl, amount, deadline, v, r, s);
+
+            // Mettre à jour la variable url pour les tests de vote
+            url = voteTestUrl;
+        });
         it("should revert when a user unregistred attempt to vote", async function () {
             const iDUrl = ethers.keccak256(ethers.toUtf8Bytes(url));
             // Convertir le hash en BigInt pour l'utiliser comme ID
             const postId = BigInt(iDUrl);
+            const amount = parseEther("1");
+            const deadline = Math.floor(Date.now() / 1000) + 3600;
+            const nonce = await divaToken.nonces(voter1.address);
+
+            const value = {
+                owner: voter1.address,
+                spender: await voting.getAddress(),
+                value: amount,
+                nonce: nonce,
+                deadline: deadline
+            };
+
+            const signature = await voter1.signTypedData(divaTokenDomain, types, value);
+            const { v, r, s } = ethers.Signature.from(signature);
+
             // Utiliser la valeur 2 qui correspond à Fake dans l'enum VoteOption
-            await expect(voting.connect(voter1).vote(postId, BigInt(2), parseEther("1")))
+            await expect(voting.connect(voter1).vote(postId, BigInt(2), amount, deadline, v, r, s))
                 .to.be.revertedWith("Voter not registered");
         })
+
         it("should revert when a user unregistred attempt to vote with a too high amount", async function () {
             const iDUrl = ethers.keccak256(ethers.toUtf8Bytes(url));
             // Convertir le hash en BigInt pour l'utiliser comme ID
             const postId = BigInt(iDUrl);
+            const amount = parseEther("60"); // Montant trop élevé
+            const deadline = Math.floor(Date.now() / 1000) + 3600;
+            const nonce = await divaToken.nonces(voter1Wallet.address);
+
+            const value = {
+                owner: voter1Wallet.address,
+                spender: await voting.getAddress(),
+                value: amount,
+                nonce: nonce,
+                deadline: deadline
+            };
+
+            const signature = await voter1Wallet.signTypedData(divaTokenDomain, types, value);
+            const { v, r, s } = ethers.Signature.from(signature);
+
             // Utiliser la valeur 2 qui correspond à Fake dans l'enum VoteOption
-            await expect(voting.connect(voter1Wallet).vote(postId, BigInt(2), parseEther("60")))
+            await expect(voting.connect(voter1Wallet).vote(postId, BigInt(2), amount, deadline, v, r, s))
                 .to.be.revertedWith("Stake too high");
         })
+
         it("should revert when a user unregistred attempt to vote with a too low amount", async function () {
             const iDUrl = ethers.keccak256(ethers.toUtf8Bytes(url));
             // Convertir le hash en BigInt pour l'utiliser comme ID
             const postId = BigInt(iDUrl);
+            const amount = parseEther("0.09"); // Montant trop faible
+            const deadline = Math.floor(Date.now() / 1000) + 3600;
+            const nonce = await divaToken.nonces(voter1Wallet.address);
+
+            const value = {
+                owner: voter1Wallet.address,
+                spender: await voting.getAddress(),
+                value: amount,
+                nonce: nonce,
+                deadline: deadline
+            };
+
+            const signature = await voter1Wallet.signTypedData(divaTokenDomain, types, value);
+            const { v, r, s } = ethers.Signature.from(signature);
+
             // Utiliser la valeur 2 qui correspond à Fake dans l'enum VoteOption
-            await expect(voting.connect(voter1Wallet).vote(postId, BigInt(2), parseEther("0.09")))
+            await expect(voting.connect(voter1Wallet).vote(postId, BigInt(2), amount, deadline, v, r, s))
                 .to.be.revertedWith("Stake too low");
         })
+
         it("should not revert when a voter votes with a valid amount", async function () {
             const iDUrl = ethers.keccak256(ethers.toUtf8Bytes(url));
             // Convertir le hash en BigInt pour l'utiliser comme ID
             const postId = BigInt(iDUrl);
+            const amount = parseEther("1");
+            const deadline = Math.floor(Date.now() / 1000) + 3600;
+            const nonce = await divaToken.nonces(voter1Wallet.address);
 
-            // Approuver le contrat Voting à dépenser les tokens DIVA de l'utilisateur
-            const votingAddress = await voting.getAddress();
-            await divaToken.connect(voter1Wallet).approve(votingAddress, parseEther("10"));
+            const value = {
+                owner: voter1Wallet.address,
+                spender: await voting.getAddress(),
+                value: amount,
+                nonce: nonce,
+                deadline: deadline
+            };
+
+            const signature = await voter1Wallet.signTypedData(divaTokenDomain, types, value);
+            const { v, r, s } = ethers.Signature.from(signature);
 
             // Utiliser la valeur 2 qui correspond à Fake dans l'enum VoteOption
-            await expect(voting.connect(voter1Wallet).vote(postId, BigInt(2), parseEther("1")))
+            await expect(voting.connect(voter1Wallet).vote(postId, BigInt(2), amount, deadline, v, r, s))
                 .to.not.be.reverted;
         })
+
         it("should emit VoteCast event when a voter vote successfully", async function () {
             const iDUrl = ethers.keccak256(ethers.toUtf8Bytes(url));
             const postId = BigInt(iDUrl);
+            const amount = parseEther("1");
+            const deadline = Math.floor(Date.now() / 1000) + 3600;
+            const nonce = await divaToken.nonces(voter2Wallet.address);
 
-            const votingAddress = await voting.getAddress();
-            await divaToken.connect(voter2Wallet).approve(votingAddress, parseEther("10"));
+            const value = {
+                owner: voter2Wallet.address,
+                spender: await voting.getAddress(),
+                value: amount,
+                nonce: nonce,
+                deadline: deadline
+            };
 
-            await expect(voting.connect(voter2Wallet).vote(postId, BigInt(2), parseEther("1")))
+            const signature = await voter2Wallet.signTypedData(divaTokenDomain, types, value);
+            const { v, r, s } = ethers.Signature.from(signature);
+
+            await expect(voting.connect(voter2Wallet).vote(postId, BigInt(2), amount, deadline, v, r, s))
                 .to.emit(postManager, "VoteCast")
-                .withArgs(postId, voter2Wallet.getAddress(), BigInt(2), parseEther("1"))
+                .withArgs(postId, await voter2Wallet.getAddress(), BigInt(2), amount);
         })
         it("should increment post's fake votes account after a vote 'fake'", async function () {
             const iDUrl = ethers.keccak256(ethers.toUtf8Bytes(url));
