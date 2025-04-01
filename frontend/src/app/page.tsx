@@ -13,7 +13,6 @@ export default function Home() {
       <div className="p-5 grow flex flex-col items-center justify-center gap-8">
         <div className="w-full max-w-4xl">
           <h2 className="text-2xl font-bold mb-6 text-center">Les Posts</h2>
-          {/* Contenu des posts ici */}
         </div>
       </div>
       <Footer />

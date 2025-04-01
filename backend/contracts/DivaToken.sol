@@ -3,9 +3,10 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract DivaToken is ERC20, Ownable {
+contract DivaToken is ERC20, ERC20Permit, Ownable {
     uint8 constant CONVERSION_RATE = 10;
     uint256 constant I_ADDRESSES_LENGTH = 4;
 
@@ -27,7 +28,7 @@ contract DivaToken is ERC20, Ownable {
         _;
     }
 
-    constructor() ERC20("DivaToken", "DIVA") {
+    constructor() ERC20("DivaToken", "DIVA") ERC20Permit("DivaToken") {
         transferOwnership(msg.sender);
         uint256 initialSupply = 100000000 * 10 ** decimals();
 
