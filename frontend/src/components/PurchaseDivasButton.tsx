@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { VOTING_CONTRACT_ADDRESS, VOTING_CONTRACT_ABI, MOCK_USDC_ADDRESS, MOCK_USDC_ABI, DIVA_TOKEN_ADDRESS, DIVA_TOKEN_ABI, POST_MANAGER_ADDRESS, POST_MANAGER_ABI } from '@/constants';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, usePublicClient, BaseError } from 'wagmi';
-import { parseEther, formatEther } from 'viem';
+import { parseEther, formatEther, parseAbiItem } from 'viem';
 import Image from 'next/image';
 import { ethers } from 'ethers';
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { usePostContext } from "@/context/PostContext";
+import { Post } from "@/types";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +18,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
-import { publicClient as viemClient } from "@/utils/client";
+import { publicClient as viemClient, hardhatClient } from "@/utils/client";
+
+// Déterminer quel client utiliser en fonction de l'environnement
+const isDev = process.env.NODE_ENV === 'development';
 
 export default function PurchaseDivasButton() {
   // États pour gérer l'interface utilisateur
@@ -36,6 +41,9 @@ export default function PurchaseDivasButton() {
 
   // Hook pour afficher des notifications toast
   const { toast } = useToast();
+
+  // Accéder au contexte des posts pour les partager
+  const { addPost } = usePostContext();
 
   // Hooks Wagmi pour interagir avec la blockchain
   const { isConnected, address } = useAccount();
@@ -98,262 +106,8 @@ export default function PurchaseDivasButton() {
     localStorage.setItem('processedDivaTransactions', JSON.stringify(processedTransactions));
   }, [processedTransactions]);
 
-  // Écouter les événements TransferDivas
   useEffect(() => {
-    if (!isConnected || !address || !publicClient) return;
-
-    // Ne pas démarrer l'écoute des événements si aucune transaction n'est en cours
-    if (!isPurchasePending && !isPurchaseConfirming) return;
-
-    let lastCheckedBlock: bigint;
-    let intervalId: NodeJS.Timeout;
-    let isInitialCheck = true;
-
-    const checkForNewEvents = async () => {
-      try {
-        // Obtenir le numéro du bloc actuel
-        const currentBlock = await viemClient.getBlockNumber();
-
-        // Si c'est la première vérification, initialiser lastCheckedBlock
-        if (!lastCheckedBlock) {
-          lastCheckedBlock = currentBlock;
-          return;
-        }
-
-        // Si c'est la vérification initiale après changement de compte, ne pas traiter les événements
-        if (isInitialCheck) {
-          isInitialCheck = false;
-          lastCheckedBlock = currentBlock;
-          return;
-        }
-
-        // Récupérer les logs pour l'événement TransferDivas depuis le dernier bloc vérifié
-        const logs = await viemClient.getLogs({
-          address: VOTING_CONTRACT_ADDRESS as `0x${string}`,
-          event: (VOTING_CONTRACT_ABI as any).find((x: any) => x.name === 'TransferDivas' && x.type === 'event'),
-          fromBlock: lastCheckedBlock,
-          toBlock: currentBlock,
-        });
-
-        // Mettre à jour le dernier bloc vérifié
-        lastCheckedBlock = currentBlock;
-
-        // Traiter chaque log
-        for (const log of logs) {
-          // Vérifier si cette transaction a déjà été traitée
-          if (!log.transactionHash) continue;
-
-          const txHash = log.transactionHash as string;
-
-          if (processedTransactions.includes(txHash)) {
-            console.log('Transaction déjà traitée, ignorée:', txHash);
-            continue;
-          }
-
-          // Typer correctement les args de l'événement
-          type TransferDivasEvent = {
-            args: {
-              to: string;
-              value: bigint;
-            }
-          };
-
-          const typedLog = log as unknown as TransferDivasEvent;
-          const { args } = typedLog;
-
-          if (args && args.to === address) {
-            console.log('Nouvelle transaction TransferDivas détectée:', txHash);
-
-            // Ajouter cette transaction à la liste des transactions traitées
-            setProcessedTransactions(prev => {
-              const newProcessedTx = [...prev, txHash];
-              // Limiter le nombre de transactions stockées pour éviter de surcharger le stockage local
-              if (newProcessedTx.length > 100) {
-                return newProcessedTx.slice(-100);
-              }
-              return newProcessedTx;
-            });
-
-            // Formater l'adresse pour l'affichage
-            const shortAddress = `${args.to.substring(0, 6)}...${args.to.substring(args.to.length - 4)}`;
-
-            // Formater le montant
-            const formattedAmount = formatEther(args.value);
-
-            // Afficher une notification toast
-            toast({
-              title: "Achat de Divas confirmé !",
-              description: (
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <span>{`${shortAddress} a acheté ${formattedAmount} Divas`}</span>
-                </div>
-              ),
-              duration: 5000,
-              className: "bg-[#1A1927] border border-[#CF662D] text-white",
-            });
-
-            // Mettre à jour l'état de succès
-            setSuccess(true);
-            setIsLoading(false);
-
-            // Rafraîchir le solde USDC
-            refetchBalance();
-
-            // Arrêter l'intervalle une fois que nous avons trouvé notre transaction
-            if (intervalId) {
-              clearInterval(intervalId);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Erreur lors de la vérification des événements TransferDivas:', error);
-      }
-    };
-
-    // Initialiser la vérification des événements
-    const initEventChecking = async () => {
-      // Initialiser lastCheckedBlock avec le bloc actuel
-      lastCheckedBlock = await viemClient.getBlockNumber();
-
-      // Vérifier les événements toutes les 5 secondes pendant la transaction
-      intervalId = setInterval(checkForNewEvents, 5000);
-    };
-
-    initEventChecking();
-
-    // Nettoyer l'intervalle lors du démontage du composant ou lorsque la transaction est terminée
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-    };
-  }, [isConnected, address, publicClient, refetchBalance, processedTransactions, isPurchasePending, isPurchaseConfirming]);
-
-  // Écouter les événements PostCreated uniquement pendant la création d'un post
-  useEffect(() => {
-    if (!isConnected || !address || !publicClient) return;
-
-    // Ne démarrer l'écoute que si nous sommes en train de poster
-    if (!isPostingInProgress && !isPostConfirming) return;
-
-    let lastCheckedBlock: bigint;
-    let intervalId: NodeJS.Timeout;
-    let timeoutId: NodeJS.Timeout;
-
-    const checkForNewPostEvents = async () => {
-      try {
-        // Obtenir le numéro du bloc actuel
-        const currentBlock = await viemClient.getBlockNumber();
-
-        // Si c'est la première vérification, initialiser lastCheckedBlock
-        if (!lastCheckedBlock) {
-          lastCheckedBlock = currentBlock;
-          return;
-        }
-
-        // Récupérer les logs pour l'événement PostCreated depuis le dernier bloc vérifié
-        const logs = await viemClient.getLogs({
-          address: POST_MANAGER_ADDRESS as `0x${string}`,
-          event: (POST_MANAGER_ABI as any).find((x: any) => x.name === 'PostCreated' && x.type === 'event'),
-          fromBlock: lastCheckedBlock,
-          toBlock: currentBlock,
-        });
-
-        // Mettre à jour le dernier bloc vérifié
-        lastCheckedBlock = currentBlock;
-
-        // Traiter chaque log
-        for (const log of logs) {
-          // Typer correctement les args de l'événement
-          type PostCreatedEvent = {
-            args: {
-              poster: string;
-              contentUrl: string;
-            }
-          };
-
-          const typedLog = log as unknown as PostCreatedEvent;
-          const { args } = typedLog;
-
-          // Vérifier si c'est notre post en comparant l'URL
-          if (args && args.contentUrl === postUrl) {
-            console.log('Post détecté avec notre URL:', args.contentUrl);
-
-            // Afficher une notification de succès
-            toast({
-              title: "Publication réussie",
-              description: (
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <span>Votre post a été publié avec succès!</span>
-                </div>
-              ),
-              className: "bg-[#1A1927] border border-[#CF662D] text-white",
-              duration: 5000,
-            });
-
-            // Réinitialiser les champs et fermer la boîte de dialogue
-            setPostTitle('');
-            setPostUrl('');
-            setIsCreatePostDialogOpen(false);
-            setIsPostingInProgress(false);
-
-            // Nettoyer les timers
-            if (intervalId) clearInterval(intervalId);
-            if (timeoutId) clearTimeout(timeoutId);
-
-            return; // Sortir de la fonction après avoir trouvé notre post
-          }
-        }
-      } catch (error) {
-        console.error('Erreur lors de la vérification des événements PostCreated:', error);
-      }
-    };
-
-    // Initialiser la vérification des événements
-    const initEventChecking = async () => {
-      // Initialiser lastCheckedBlock avec le bloc actuel
-      lastCheckedBlock = await viemClient.getBlockNumber();
-
-      // Vérifier les événements toutes les 3 secondes pendant la création du post
-      intervalId = setInterval(checkForNewPostEvents, 3000);
-
-      // Mettre en place un timeout de sécurité pour arrêter l'écoute après 30 secondes
-      timeoutId = setTimeout(() => {
-        if (intervalId) clearInterval(intervalId);
-
-        // Si nous sommes toujours en train de poster après 30 secondes, fermer la boîte de dialogue
-        if (isPostingInProgress) {
-          toast({
-            title: "Information",
-            description: (
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-[#CF662D]" />
-                <span>La transaction a été envoyée mais nous n'avons pas pu confirmer sa finalisation. Vérifiez votre historique de transactions.</span>
-              </div>
-            ),
-            className: "bg-[#1A1927] border border-[#CF662D] text-white",
-            duration: 8000,
-          });
-
-          setIsCreatePostDialogOpen(false);
-          setIsPostingInProgress(false);
-        }
-      }, 30000);
-    };
-
-    initEventChecking();
-
-    // Nettoyer les intervalles et timeouts lors du démontage du composant
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [isConnected, address, publicClient, postUrl, isPostingInProgress, isPostConfirming]);
-
-  // Mettre à jour l'état de succès lorsque la transaction d'achat est confirmée via useWaitForTransactionReceipt
-  useEffect(() => {
+    // Mettre à jour l'état lorsque la transaction d'achat est confirmée via useWaitForTransactionReceipt
     if (isPurchaseConfirmed && !success) {
       setSuccess(true);
       setIsLoading(false);
@@ -362,57 +116,180 @@ export default function PurchaseDivasButton() {
       // Rafraîchir le solde USDC après confirmation
       refetchBalance();
 
-      // Afficher une notification de succès
-      toast({
-        title: "Achat confirmé",
-        description: (
-          <div className="flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-green-500" />
-            <span>Votre achat de tokens DIVA a été confirmé!</span>
-          </div>
-        ),
-        className: "bg-[#1A1927] border border-[#CF662D] text-white",
-        duration: 5000,
-      });
-
       // Ajouter le token DIVA à MetaMask uniquement après confirmation d'achat
       addTokenToMetaMask();
-    }
-  }, [isPurchaseConfirmed, success, refetchBalance]);
 
-  // Gérer la confirmation de la transaction de post via useWaitForTransactionReceipt
+      // Déclencher la recherche d'événements TransferDivas
+      if (purchaseHash) {
+        console.log('Déclenchement de la recherche d\'événements TransferDivas après confirmation');
+        listenForTransferDivasEvent(purchaseHash);
+      }
+    }
+  }, [isPurchaseConfirmed, purchaseHash]);
+
   useEffect(() => {
+    // Mettre à jour l'état lorsque la transaction de post est confirmée via useWaitForTransactionReceipt
     if (isPostConfirmed && isPostingInProgress) {
       console.log('Transaction de post confirmée via useWaitForTransactionReceipt');
 
-      // Vérifier si l'événement a déjà été capturé (si la boîte de dialogue est déjà fermée)
-      if (isCreatePostDialogOpen) {
-        // Si l'événement n'a pas été capturé, fermer manuellement la boîte de dialogue
-        setTimeout(() => {
-          if (isCreatePostDialogOpen && isPostingInProgress) {
+      // Déclencher la recherche d'événements PostCreated
+      if (postHash) {
+        console.log('Déclenchement de la recherche d\'événements PostCreated après confirmation');
+        listenForPostCreatedEvent(postHash);
+      }
+    }
+  }, [isPostConfirmed, isPostingInProgress, postHash]);
+
+  // Fonction pour écouter l'événement TransferDivas
+  const listenForTransferDivasEvent = async (transactionHash?: string) => {
+    if (!isConnected || !address || !publicClient) return;
+
+    console.log('Démarrage de l\'écoute des événements TransferDivas');
+
+    try {
+      if (transactionHash) {
+        console.log(`Récupération des logs pour la transaction spécifique: ${transactionHash}`);
+
+        // Attendre que la transaction soit confirmée
+        const receipt = await (isDev ? hardhatClient : viemClient).waitForTransactionReceipt({
+          hash: transactionHash as `0x${string}`
+        });
+
+        console.log('Reçu de transaction:', receipt);
+
+        // Si la transaction a réussi, vérifier les événements TransferDivas
+        if (receipt.status === 'success') {
+          console.log('Transaction réussie, vérification des événements TransferDivas');
+
+          // Récupérer les logs pour l'événement TransferDivas dans cette transaction
+          const logs = await (isDev ? hardhatClient : viemClient).getLogs({
+            address: VOTING_CONTRACT_ADDRESS as `0x${string}`,
+            event: parseAbiItem('event TransferDivas(address indexed to, uint256 value)'),
+            fromBlock: receipt.blockNumber,
+            toBlock: receipt.blockNumber
+          });
+
+          console.log('Logs d\'événements TransferDivas trouvés:', logs);
+
+          // Filtrer les logs pour l'adresse de l'utilisateur
+          const userLogs = logs.filter(log => {
+            // Vérifier si l'adresse de l'utilisateur est dans les arguments de l'événement
+            return log.args && (
+              (log.args.to && log.args.to.toLowerCase() === address.toLowerCase())
+            );
+          });
+
+          console.log('Logs filtrés pour l\'utilisateur:', userLogs);
+
+          if (userLogs.length > 0) {
+            // Afficher une notification toast
             toast({
-              title: "Publication confirmée",
+              title: "Achat de Divas confirmé !",
               description: (
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-5 w-5 text-green-500" />
-                  <span>Votre post a été publié avec succès!</span>
+                  <span>Vos Divas ont été achetés avec succès!</span>
+                </div>
+              ),
+              duration: 5000,
+              className: "bg-[#1A1927] border border-[#CF662D] text-white",
+            });
+          } else {
+            console.log('Aucun événement TransferDivas trouvé pour l\'utilisateur');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification des événements TransferDivas:', error);
+    }
+  };
+
+  // Fonction pour écouter l'événement PostCreated
+  const listenForPostCreatedEvent = async (transactionHash?: string) => {
+    if (!isConnected || !address || !publicClient) return;
+
+    console.log('Démarrage de l\'écoute des événements PostCreated');
+
+    try {
+      if (transactionHash) {
+        console.log(`Récupération des logs pour la transaction spécifique: ${transactionHash}`);
+
+        // Attendre que la transaction soit confirmée
+        const receipt = await (isDev ? hardhatClient : viemClient).waitForTransactionReceipt({
+          hash: transactionHash as `0x${string}`
+        });
+
+        console.log('Reçu de transaction de post:', receipt);
+
+        // Si la transaction a réussi, vérifier les événements PostCreated
+        if (receipt.status === 'success') {
+          console.log('Transaction de post réussie, vérification des événements PostCreated');
+
+          // Récupérer les logs pour l'événement PostCreated dans cette transaction
+          const logs = await (isDev ? hardhatClient : viemClient).getLogs({
+            address: POST_MANAGER_ADDRESS as `0x${string}`,
+            event: parseAbiItem('event PostCreated(uint256 indexed postId, address indexed poster, string contentUrl)'),
+            fromBlock: receipt.blockNumber,
+            toBlock: receipt.blockNumber
+          });
+
+          console.log('Logs d\'événements PostCreated trouvés:', logs);
+
+          // Filtrer les logs pour l'adresse de l'utilisateur
+          const userLogs = logs.filter(log => {
+            // Vérifier si l'adresse de l'utilisateur est dans les arguments de l'événement
+            return log.args && (
+              (log.args.poster && log.args.poster.toLowerCase() === address.toLowerCase())
+            );
+          });
+
+          console.log('Logs filtrés pour l\'utilisateur:', userLogs);
+
+          if (userLogs.length > 0) {
+            // Fermer la boîte de dialogue de création de post
+            setIsCreatePostDialogOpen(false);
+            setIsPostingInProgress(false);
+
+            // Réinitialiser les champs
+            setPostTitle('');
+            setPostUrl('');
+
+            // Ajouter le post à la liste des posts (si la fonction addPost est disponible)
+            if (addPost && userLogs[0].args && userLogs[0].args.contentUrl) {
+              const contentUrl = userLogs[0].args.contentUrl;
+              addPost({
+                poster: address,
+                contentUrl: contentUrl,
+                timestamp: Date.now(),
+                metadata: {
+                  title: postTitle // Utiliser le titre saisi par l'utilisateur
+                }
+              });
+            }
+
+            // Afficher une notification toast
+            toast({
+              title: "Post publié avec succès !",
+              description: (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  <span>Votre post a été publié sur la blockchain</span>
                 </div>
               ),
               className: "bg-[#1A1927] border border-[#CF662D] text-white",
               duration: 5000,
             });
-
-            setPostTitle('');
-            setPostUrl('');
-            setIsCreatePostDialogOpen(false);
-            setIsPostingInProgress(false);
+          } else {
+            console.log('Aucun événement PostCreated trouvé pour l\'utilisateur');
           }
-        }, 3000); // Attendre 3 secondes pour laisser le temps à l'écouteur d'événements de traiter l'événement
+        }
       }
+    } catch (error) {
+      console.error('Erreur lors de la vérification des événements PostCreated:', error);
     }
-  }, [isPostConfirmed, isPostingInProgress, isCreatePostDialogOpen]);
+  };
 
-  // Cette fonction génère une signature pour le permit EIP-2612
+  // Fonction pour obtenir une signature pour le permit EIP-2612
   const getSignature = async () => {
     if (!window.ethereum || !address) {
       throw new Error("Portefeuille non connecté");
@@ -625,14 +502,14 @@ export default function PurchaseDivasButton() {
       console.log('- Signature s:', s);
 
       // Appeler la fonction purchaseDivas du contrat
-      const txHash = await writeContract({
+      await writeContract({
         address: VOTING_CONTRACT_ADDRESS,
         abi: VOTING_CONTRACT_ABI,
         functionName: 'purchaseDivas',
         args: [amountInWei, deadline, v, r, s],
       });
 
-      console.log('Transaction envoyée, hash:', txHash);
+      console.log('Transaction envoyée, hash:', purchaseHash);
 
       // Afficher une notification de transaction en cours
       toast({
@@ -644,11 +521,11 @@ export default function PurchaseDivasButton() {
           </div>
         ),
         className: "bg-[#1A1927] border border-[#CF662D] text-white",
-        duration: 5000,
+        duration: 2000,
       });
 
-      // Ne pas fermer la boîte de dialogue pour permettre à l'utilisateur de voir le message de succès
-      // setIsDialogOpen(false);
+      // Mettre à jour l'état pour indiquer que la transaction est en cours de traitement
+      setIsLoading(false);
     } catch (err) {
       console.error('Erreur lors de l\'achat de Divas:', err);
       setError(`Erreur: ${(err as BaseError).shortMessage || (err as Error).message || 'Transaction échouée'}`);
@@ -725,17 +602,17 @@ export default function PurchaseDivasButton() {
       console.log('- Signature s:', s);
 
       // Appeler la fonction createPost du contrat Voting avec le hook spécifique
-      const txHash = await writePostContract({
+      await writePostContract({
         address: VOTING_CONTRACT_ADDRESS,
         abi: VOTING_CONTRACT_ABI,
         functionName: 'createPost',
         args: [postUrl, amount, deadline, v, r, s],
       });
 
-      console.log('Transaction de création de post envoyée, hash:', txHash);
+      console.log('Transaction de création de post envoyée, hash:', postHash);
 
       // La fermeture de la boîte de dialogue et l'affichage de la notification de succès
-      // seront gérés par l'écouteur d'événements PostCreated
+      // seront gérés par la fonction listenForPostCreatedEvent
     } catch (err) {
       console.error('Erreur lors de la création du post:', err);
       setPostError(`Erreur: ${(err as BaseError).shortMessage || (err as Error).message || 'Transaction échouée'}`);

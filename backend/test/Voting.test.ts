@@ -8,7 +8,6 @@ describe("Voting contract tests:", function () {
     let voting: any;
     let divaToken: any;
     let mockUSDC: any;
-    let votingRegistry: any;
     let postManager: any;
     let voter1: any;
     let voter2: any;
@@ -20,7 +19,6 @@ describe("Voting contract tests:", function () {
         const votingFixture = await loadFixture(deployVoting);
         voting = votingFixture.voting;
         divaToken = votingFixture.divaToken;
-        votingRegistry = votingFixture.votingRegistry;
         postManager = votingFixture.postManager;
         mockUSDC = votingFixture.mockUSDC;
         voter1 = votingFixture.voter1;
@@ -48,7 +46,6 @@ describe("Voting contract tests:", function () {
     let voter2Wallet: any;
     before(async function () {
 
-        // Pour les tests, on peut créer un nouveau wallet pour simuler voter1
         const privateKey = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
         voter1Wallet = new ethers.Wallet(privateKey, ethers.provider);
 
@@ -155,7 +152,7 @@ describe("Voting contract tests:", function () {
         });
 
         it("should register the buyer as a voter ", async function () {
-            expect(await votingRegistry.isRegistered(voter1Wallet.getAddress())).to.be.true;
+            expect(await postManager.isRegistered(voter1Wallet.getAddress())).to.be.true;
         })
 
         it("should emit TransferDivas event when purchasing with permit", async function () {
@@ -539,52 +536,165 @@ describe("Voting contract tests:", function () {
 
     })
 
-    describe("Withdraw vote tests", function () {
 
 
-        it("should allow a voter to withdraw their vote", async function () {
-            // Vérifier le solde avant le retrait
-            const voter1Address = await voter1Wallet.getAddress();
-            const balanceBefore = await divaToken.balanceOf(voter1Address);
+    describe("PostManager Access Functions Tests", function () {
+        let postId: bigint;
+        let testUrl: string;
 
-            const iDUrl = ethers.keccak256(ethers.toUtf8Bytes(url));
-            const postId = BigInt(iDUrl);
-            // Retirer le vote
-            await voting.connect(voter1Wallet).withdrawVote(postId);
+        before(async function () {
+            // Créer un post pour les tests
+            testUrl = "https://example.com/access-functions-test";
 
-            // Vérifier le solde après le retrait
-            const balanceAfter = await divaToken.balanceOf(voter1Address);
+            // S'assurer que voter1Wallet a assez de DIVA tokens
+            const divaBalance = await divaToken.balanceOf(voter1Wallet.address);
+            if (divaBalance < ethers.parseEther("5")) {
+                // Acheter des DIVA tokens si nécessaire
+                const usdcAmount = ethers.parseEther("10");
+                const deadline = Math.floor(Date.now() / 1000) + 3600;
+                const nonce = await mockUSDC.nonces(voter1Wallet.address);
 
-            // Le solde devrait avoir augmenté du montant misé
-            expect(balanceAfter).to.be.gt(balanceBefore);
-        })
+                const value = {
+                    owner: voter1Wallet.address,
+                    spender: await voting.getAddress(),
+                    value: usdcAmount,
+                    nonce: nonce,
+                    deadline: deadline
+                };
 
-        it("should revert when trying to withdraw a vote twice", async function () {
+                const signature = await voter1Wallet.signTypedData(mockUSDCDomain, types, value);
+                const { v, r, s } = ethers.Signature.from(signature);
 
-            const iDUrl = ethers.keccak256(ethers.toUtf8Bytes(url));
-            const postId = BigInt(iDUrl);
-            // Essayer de retirer le vote une deuxième fois
-            await expect(voting.connect(voter1Wallet).withdrawVote(postId))
-                .to.be.revertedWith("Vote already withdrawn");
-        })
+                await voting.connect(voter1Wallet).purchaseDivas(
+                    usdcAmount,
+                    deadline,
+                    v,
+                    r,
+                    s
+                );
+            }
 
-        it("should revert when trying to withdraw a non-existent vote", async function () {
-            // Essayer de retirer un vote pour un post qui n'existe pas
-            const nonExistentPostId = BigInt(ethers.keccak256(ethers.toUtf8Bytes("non-existent-url")));
+            // Créer un post avec permit pour DivaToken
+            // Utiliser POST_STAKE_AMOUNT (5 DIVA) comme défini dans le contrat
+            const divaAmount = ethers.parseEther("5");
+            const deadline = Math.floor(Date.now() / 1000) + 3600;
+            const nonce = await divaToken.nonces(voter1Wallet.address);
 
-            // Cela devrait échouer car le vote n'existe pas
-            await expect(voting.connect(voter1Wallet).withdrawVote(nonExistentPostId))
-                .to.be.reverted;
-        })
-        it("should emit VoteWithdran event when a voter delete his vote", async function () {
-            const iDUrl = ethers.keccak256(ethers.toUtf8Bytes(url));
-            const postId = BigInt(iDUrl);
-            const voter2Add = await voter2Wallet.getAddress();
-            // Essayer de retirer le vote une deuxième fois
-            await expect(voting.connect(voter2Wallet).withdrawVote(postId))
-                .to.emit(postManager, "VoteWithdrawn")
-                .withArgs(postId, voter2Add);
-        })
+            const value = {
+                owner: voter1Wallet.address,
+                spender: await voting.getAddress(),
+                value: divaAmount,
+                nonce: nonce,
+                deadline: deadline
+            };
 
-    })
+            const signature = await voter1Wallet.signTypedData(divaTokenDomain, types, value);
+            const { v, r, s } = ethers.Signature.from(signature);
+
+            await voting.connect(voter1Wallet).createPost(
+                testUrl,
+                divaAmount,
+                deadline,
+                v,
+                r,
+                s
+            );
+
+            // Récupérer l'ID du post
+            const iDUrl = ethers.keccak256(ethers.toUtf8Bytes(testUrl));
+            postId = BigInt(iDUrl);
+
+            // Pour les tests, nous allons d'abord enregistrer voter2Wallet comme votant
+            if (!await postManager.isRegistered(voter2Wallet.address)) {
+                await voting.connect(voter1Wallet).registerVoterForTesting(voter2Wallet.address);
+            }
+
+            // Ensuite, nous modifions directement le storage pour configurer sa réputation à 50
+            const postManagerAddress = await postManager.getAddress();
+            const voterSlot = ethers.solidityPackedKeccak256(
+                ["address", "uint256"],
+                [voter2Wallet.address, 0] // le mapping des voters est à la position 0
+            );
+
+            // La position de la réputation est à offset 1 dans la struct Voter
+            const reputationSlot = ethers.toBigInt(voterSlot) + 1n;
+
+            // Modifier directement le storage pour attribuer une réputation de 50
+            await ethers.provider.send("hardhat_setStorageAt", [
+                postManagerAddress,
+                ethers.toBeHex(reputationSlot),
+                ethers.toBeHex(50, 32) // 50 avec padding à 32 bytes
+            ]);
+
+            const voteAmount = ethers.parseEther("5");
+            const voteDeadline = Math.floor(Date.now() / 1000) + 3600;
+            const voteNonce = await divaToken.nonces(voter2Wallet.address);
+
+            const voteValue = {
+                owner: voter2Wallet.address,
+                spender: await voting.getAddress(),
+                value: voteAmount,
+                nonce: voteNonce,
+                deadline: voteDeadline
+            };
+
+            const voteSignature = await voter2Wallet.signTypedData(divaTokenDomain, types, voteValue);
+            const voteSig = ethers.Signature.from(voteSignature);
+
+            // Voter TRUE avec 5 DIVA
+            await voting.connect(voter2Wallet).vote(
+                postId,
+                1,  // 1 corresponds to PostManager.VoteOption.True
+                voteAmount,
+                voteDeadline,
+                voteSig.v,
+                voteSig.r,
+                voteSig.s
+            );
+
+            // Maintenant nous devons mettre à jour directement la totalTrueReputation du post
+            // Le mapping des posts est stocké à l'index 2 dans PostManager
+            const postKey = ethers.solidityPackedKeccak256(
+                ["uint256", "uint256"],
+                [postId, 2] // 2 est l'index du mapping des posts
+            );
+
+            // La position de totalTrueReputation est à offset 3 dans la struct Post
+            const totalTrueReputationSlot = ethers.toBigInt(postKey) + 3n;
+
+            // Mettre à jour totalTrueReputation à 50
+            await ethers.provider.send("hardhat_setStorageAt", [
+                postManagerAddress,
+                ethers.toBeHex(totalTrueReputationSlot),
+                ethers.toBeHex(50, 32) // 50 avec padding à 32 bytes
+            ]);
+        });
+
+        describe("getVoters function", function () {
+            it("should return the correct list of voters for a post", async function () {
+                const voters = await postManager.getVoters(postId);
+
+                expect(voters.length).to.be.greaterThan(0);
+                expect(voters).to.include(voter2Wallet.address);
+            });
+        });
+
+        describe("getPostStatus function", function () {
+            it("should return true and active status for the test post", async function () {
+                const [exists, status] = await postManager.getPostStatus(postId);
+
+                expect(exists).to.be.true;
+                // VoteStatus.Active = 0
+                expect(status).to.equal(0);
+            });
+
+            it("should return false for a non-existent post", async function () {
+                const nonExistentPostId = ethers.keccak256(ethers.toUtf8Bytes("non-existent-url"));
+                const [exists,] = await postManager.getPostStatus(nonExistentPostId);
+
+                expect(exists).to.be.false;
+            });
+        });
+
+    });
 })

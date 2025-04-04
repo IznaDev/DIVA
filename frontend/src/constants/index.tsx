@@ -1,6 +1,6 @@
 export const VOTING_CONTRACT_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
 export const MOCK_USDC_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
-export const POST_MANAGER_ADDRESS = "0xbf9fBFf01664500A33080Da5d437028b07DFcC55"; // Adresse à mettre à jour après déploiement
+export const POST_MANAGER_ADDRESS = "0x9f1ac54BEF0DD2f6f3462EA0fa94fC62300d3a8e"; // Adresse à mettre à jour après déploiement
 export const DIVA_TOKEN_ADDRESS = "0xCafac3dD18aC6c6e92c921884f9E4176737C052c"; // Adresse à mettre à jour après déploiement
 
 export const MOCK_USDC_ABI = [
@@ -633,6 +633,55 @@ export const VOTING_CONTRACT_ABI = [
         "type": "event"
     },
     {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "postId",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "enum PostManager.VoteOption",
+                "name": "result",
+                "type": "uint8"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "majority",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "totalRewarded",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "totalReturned",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "winnerCount",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "loserCount",
+                "type": "uint256"
+            }
+        ],
+        "name": "VoteFinalized",
+        "type": "event"
+    },
+    {
         "inputs": [],
         "name": "DIVA_PRICE",
         "outputs": [
@@ -779,6 +828,25 @@ export const VOTING_CONTRACT_ABI = [
         "type": "function"
     },
     {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_postId",
+                "type": "uint256"
+            }
+        ],
+        "name": "finalizeAndDistribute",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
         "inputs": [],
         "name": "mockUSDC",
         "outputs": [
@@ -851,10 +919,42 @@ export const VOTING_CONTRACT_ABI = [
         "type": "function"
     },
     {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_voter",
+                "type": "address"
+            }
+        ],
+        "name": "registerVoterForTesting",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
         "inputs": [],
         "name": "renounceOwnership",
         "outputs": [],
         "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "name": "rewardsDistributed",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
         "type": "function"
     },
     {
@@ -912,43 +1012,11 @@ export const VOTING_CONTRACT_ABI = [
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "votingRegistry",
-        "outputs": [
-            {
-                "internalType": "contract VotingRegistry",
-                "name": "",
-                "type": "address"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "uint256",
-                "name": "_postId",
-                "type": "uint256"
-            }
-        ],
-        "name": "withdrawVote",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
     }
 ];
 export const POST_MANAGER_ABI = [
     {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "_votingRegistry",
-                "type": "address"
-            }
-        ],
+        "inputs": [],
         "stateMutability": "nonpayable",
         "type": "constructor"
     },
@@ -1013,6 +1081,25 @@ export const POST_MANAGER_ABI = [
             }
         ],
         "name": "QuorumReached",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "voter",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "newReputation",
+                "type": "uint256"
+            }
+        ],
+        "name": "ReputationUpdated",
         "type": "event"
     },
     {
@@ -1091,8 +1178,47 @@ export const POST_MANAGER_ABI = [
         "type": "event"
     },
     {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "voter",
+                "type": "address"
+            }
+        ],
+        "name": "VoterRegistered",
+        "type": "event"
+    },
+    {
+        "inputs": [],
+        "name": "MAX_REPUTATION",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
         "inputs": [],
         "name": "MAX_VOTE_DURATION",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "MIN_REPUTATION",
         "outputs": [
             {
                 "internalType": "uint256",
@@ -1132,6 +1258,11 @@ export const POST_MANAGER_ABI = [
     {
         "inputs": [
             {
+                "internalType": "address",
+                "name": "_poster",
+                "type": "address"
+            },
+            {
                 "internalType": "string",
                 "name": "_contentUrl",
                 "type": "string"
@@ -1159,6 +1290,64 @@ export const POST_MANAGER_ABI = [
         "name": "finalizeVote",
         "outputs": [],
         "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_postId",
+                "type": "uint256"
+            }
+        ],
+        "name": "getPostStatus",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "exists",
+                "type": "bool"
+            },
+            {
+                "internalType": "enum PostManager.VoteStatus",
+                "name": "status",
+                "type": "uint8"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_postId",
+                "type": "uint256"
+            }
+        ],
+        "name": "getPostTotals",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "totalTrueStake",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "totalFakeStake",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "totalTrueReputation",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "totalFakeReputation",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
         "type": "function"
     },
     {
@@ -1202,6 +1391,80 @@ export const POST_MANAGER_ABI = [
                 "internalType": "struct PostManager.Vote",
                 "name": "",
                 "type": "tuple"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_voter",
+                "type": "address"
+            }
+        ],
+        "name": "getVoterData",
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "bool",
+                        "name": "isRegistered",
+                        "type": "bool"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "reputation",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "voteCount",
+                        "type": "uint256"
+                    }
+                ],
+                "internalType": "struct PostManager.Voter",
+                "name": "",
+                "type": "tuple"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_postId",
+                "type": "uint256"
+            }
+        ],
+        "name": "getVoters",
+        "outputs": [
+            {
+                "internalType": "address[]",
+                "name": "",
+                "type": "address[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_voter",
+                "type": "address"
+            }
+        ],
+        "name": "isRegistered",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
             }
         ],
         "stateMutability": "view",
@@ -1305,6 +1568,19 @@ export const POST_MANAGER_ABI = [
         "type": "function"
     },
     {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_voter",
+                "type": "address"
+            }
+        ],
+        "name": "registerVoter",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
         "inputs": [],
         "name": "renounceOwnership",
         "outputs": [],
@@ -1353,37 +1629,53 @@ export const POST_MANAGER_ABI = [
         "type": "function"
     },
     {
-        "inputs": [],
-        "name": "votingRegistry",
-        "outputs": [
+        "inputs": [
             {
-                "internalType": "contract VotingRegistry",
-                "name": "",
+                "internalType": "address",
+                "name": "_voter",
                 "type": "address"
+            },
+            {
+                "internalType": "int256",
+                "name": "_change",
+                "type": "int256"
             }
         ],
-        "stateMutability": "view",
+        "name": "updateReputation",
+        "outputs": [],
+        "stateMutability": "nonpayable",
         "type": "function"
     },
     {
         "inputs": [
             {
-                "internalType": "uint256",
-                "name": "_postId",
-                "type": "uint256"
-            },
-            {
                 "internalType": "address",
-                "name": "_voter",
+                "name": "",
                 "type": "address"
             }
         ],
-        "name": "withdrawVote",
-        "outputs": [],
-        "stateMutability": "nonpayable",
+        "name": "voters",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "isRegistered",
+                "type": "bool"
+            },
+            {
+                "internalType": "uint256",
+                "name": "reputation",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "voteCount",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
         "type": "function"
     }
-]
+];
 
 export const DIVA_TOKEN_ABI = [
     {
@@ -1890,4 +2182,4 @@ export const DIVA_TOKEN_ABI = [
         "stateMutability": "nonpayable",
         "type": "function"
     }
-]
+];

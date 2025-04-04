@@ -15,9 +15,10 @@ import {
     QueryClient,
 } from "@tanstack/react-query";
 import { http } from 'viem';
+import { PostProvider } from '@/context/PostContext';
 
 const config = getDefaultConfig({
-    appName: 'My RainbowKit App',
+    appName: 'DIVA',
     projectId: 'YOUR_PROJECT_ID',
     chains: [hardhat, sepolia],
     transports: {
@@ -41,7 +42,9 @@ const CustomProvider = ({ children }: Readonly<{
                     borderRadius: 'medium',
                     fontStack: 'system'
                 })}>
-                    {children}
+                    <PostProvider>
+                        {children}
+                    </PostProvider>
                 </RainbowKitProvider>
             </QueryClientProvider>
         </WagmiProvider>

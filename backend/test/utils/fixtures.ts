@@ -17,25 +17,13 @@ export async function deployMockUSDC() {
     return { mockUSDC, owner: mockUSDC.owner() };
 }
 
-export async function deployVotingRegistry() {
-    const [owner] = await ethers.getSigners();
-
-    const VotingRegistry = await ethers.getContractFactory("VotingRegistry");
-    const votingRegistry = await VotingRegistry.deploy();
-
-    return { votingRegistry, owner };
-}
-
 export async function deployPostManager() {
     const [owner] = await ethers.getSigners();
 
-    const { votingRegistry } = await deployVotingRegistry();
-    const votingRegistryAddress = await votingRegistry.getAddress();
-
     const PostManager = await ethers.getContractFactory("PostManager");
-    const postManager = await PostManager.deploy(votingRegistryAddress);
+    const postManager = await PostManager.deploy();
 
-    return { postManager, owner, votingRegistry }
+    return { postManager, owner }
 }
 
 export async function deployVoting() {
@@ -53,9 +41,7 @@ export async function deployVoting() {
     const DivaToken = await ethers.getContractFactory("DivaToken");
     const divaToken = await DivaToken.attach(divaTokenAddress);
 
-    const votingRegistryAddress = await voting.votingRegistry();
-    const VotingRegistry = await ethers.getContractFactory("VotingRegistry");
-    const votingRegistry = await VotingRegistry.attach(votingRegistryAddress);
+    // VotingRegistry est maintenant intégré dans PostManager
 
     const postManagerAddress = await voting.postManager();
     const PostManager = await ethers.getContractFactory("PostManager");
@@ -63,7 +49,7 @@ export async function deployVoting() {
 
 
     return {
-        voting, divaToken, mockUSDC, votingRegistry, postManager, owner, poster1, poster2, voter1, voter2,
+        voting, divaToken, mockUSDC, postManager, owner, poster1, poster2, voter1, voter2,
         voter3, voter4, voter5, voter6, voter7, voter8, voter9, voter10
     };
 }

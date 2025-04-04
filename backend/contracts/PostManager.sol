@@ -2,15 +2,14 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./VotingRegistry.sol";
 
 contract PostManager is Ownable {
     // Constants
     uint256 public constant QUORUM_POINTS = 1000;
     uint256 public constant VOTE_DURATION_AFTER_QUORUM = 24 hours;
     uint256 public constant MAX_VOTE_DURATION = 48 hours;
-
-    VotingRegistry public votingRegistry;
+    uint256 public constant MIN_REPUTATION = 1;
+    uint256 public constant MAX_REPUTATION = 100;
 
     enum VoteOption {
         None,
@@ -21,6 +20,12 @@ contract PostManager is Ownable {
     enum VoteStatus {
         Active,
         Completed
+    }
+
+    struct Voter {
+        bool isRegistered;
+        uint256 reputation;
+        uint256 voteCount;
     }
 
     struct Vote {
@@ -72,11 +77,16 @@ contract PostManager is Ownable {
         uint256 majority
     );
 
-    constructor(address _votingRegistry) {
-        votingRegistry = VotingRegistry(_votingRegistry);
-    }
+    event VoterRegistered(address indexed voter);
+    event ReputationUpdated(address indexed voter, uint256 newReputation);
+
+    // Mapping pour stocker les données des votants
+    mapping(address => Voter) public voters;
+
+    constructor() {}
 
     function createPost(
+        address _poster,
         string calldata _contentUrl
     ) external returns (uint256) {
         bytes32 _urlHash = keccak256(abi.encodePacked(_contentUrl));
@@ -86,13 +96,13 @@ contract PostManager is Ownable {
 
         Post storage newPost = posts[_postId];
         newPost.contentUrl = _contentUrl;
-        newPost.poster = msg.sender;
+        newPost.poster = _poster;
         newPost.status = VoteStatus.Active;
         newPost.urlExists = true;
         newPost.voters = new address[](0);
         newPost.postTime = block.timestamp;
 
-        emit PostCreated(_postId, msg.sender, _contentUrl);
+        emit PostCreated(_postId, _poster, _contentUrl);
 
         return _postId;
     }
@@ -138,7 +148,7 @@ contract PostManager is Ownable {
 
         _post.voters.push(_voters);
 
-        uint256 reputation = votingRegistry.getVoterData(_voters).reputation;
+        uint256 reputation = voters[_voters].reputation;
 
         if (_vote == VoteOption.True) {
             _post.trueVoteCount++;
@@ -161,64 +171,37 @@ contract PostManager is Ownable {
         emit VoteCast(_postId, _voters, _vote, _stakeAmount);
     }
 
-    function withdrawVote(uint256 _postId, address _voter) external {
-        Post storage post = posts[_postId];
-        require(
-            post.votes[_voter].choice != VoteOption.None,
-            "No vote to withdraw"
-        );
-
-        require(post.quorumReachedTime == 0, "Quorum reached, cannot withdraw");
-
-        if (post.votes[_voter].choice == VoteOption.True) {
-            post.trueVoteCount--;
-            post.totalTrueStake -= post.votes[_voter].stakeAmount;
-            uint256 _reputation = votingRegistry
-                .getVoterData(_voter)
-                .reputation;
-            post.totalTrueReputation -= _reputation;
-        } else {
-            post.fakeVoteCount--;
-            post.totalFakeStake -= post.votes[_voter].stakeAmount;
-            uint256 _reputation = votingRegistry
-                .getVoterData(_voter)
-                .reputation;
-            post.totalFakeReputation -= _reputation;
-        }
-
-        post.votes[_voter] = Vote({
-            choice: VoteOption.None,
-            stakeAmount: 0,
-            timestamp: 0,
-            withdrawn: true
-        });
-        emit VoteWithdrawn(_postId, _voter);
-    }
-
     function finalizeVote(uint256 _postId) external {
         Post storage post = posts[_postId];
-        require(post.status == VoteStatus.Active, "Not in active voting state");
+        require(post.status == VoteStatus.Active, "Vote already finalized");
+
+        // Vérifier si le délai est passé ou bien si l'appel vient du contrat owner
+        bool isTimeExpired = false;
         uint256 deadline;
+
         if (post.quorumReachedTime > 0) {
             deadline = post.quorumReachedTime + VOTE_DURATION_AFTER_QUORUM;
         } else {
             deadline = post.postTime + MAX_VOTE_DURATION;
         }
 
-        require(block.timestamp >= deadline, "Voting period not ended yet");
+        isTimeExpired = block.timestamp >= deadline;
+
+        // Autoriser la finalisation si le temps est écoulé ou si l'appel vient du contrat owner
+        require(
+            isTimeExpired || msg.sender == owner(),
+            "Voting period not ended yet"
+        );
 
         post.status = VoteStatus.Completed;
 
         VoteOption result;
-
         uint256 totalVotes = post.totalTrueReputation +
             post.totalFakeReputation;
+
         uint256 trueVotes = (post.totalTrueReputation * 100) / totalVotes;
 
-        if (totalVotes == 0) {
-            result = VoteOption.None;
-            emit VoteCompleted(_postId, result, 0);
-        } else if (trueVotes > 50) {
+        if (trueVotes > 50) {
             result = VoteOption.True;
             emit VoteCompleted(_postId, result, trueVotes);
         } else if (trueVotes < 50) {
@@ -235,5 +218,121 @@ contract PostManager is Ownable {
         address _voter
     ) external view returns (Vote memory) {
         return posts[_postId].votes[_voter];
+    }
+
+    /**
+     * @dev Récupère la liste des votants pour un post
+     * @param _postId Identifiant du post
+     * @return Liste des adresses des votants
+     */
+    function getVoters(
+        uint256 _postId
+    ) external view returns (address[] memory) {
+        return posts[_postId].voters;
+    }
+
+    /**
+     * @dev Vérifie si un post existe et son statut
+     * @param _postId Identifiant du post
+     * @return exists Si le post existe
+     * @return status Statut du post
+     */
+    function getPostStatus(
+        uint256 _postId
+    ) external view returns (bool exists, VoteStatus status) {
+        Post storage post = posts[_postId];
+        return (post.urlExists, post.status);
+    }
+
+    /**
+     * @dev Récupère les totaux des mises et de la réputation pour un post
+     * @param _postId Identifiant du post
+     * @return totalTrueStake Mise totale pour l'option "True"
+     * @return totalFakeStake Mise totale pour l'option "Fake"
+     * @return totalTrueReputation Réputation totale pour l'option "True"
+     * @return totalFakeReputation Réputation totale pour l'option "Fake"
+     */
+    function getPostTotals(
+        uint256 _postId
+    )
+        external
+        view
+        returns (
+            uint256 totalTrueStake,
+            uint256 totalFakeStake,
+            uint256 totalTrueReputation,
+            uint256 totalFakeReputation
+        )
+    {
+        Post storage post = posts[_postId];
+        return (
+            post.totalTrueStake,
+            post.totalFakeStake,
+            post.totalTrueReputation,
+            post.totalFakeReputation
+        );
+    }
+
+    /**
+     * @dev Enregistre un nouveau votant
+     * @param _voter Adresse du votant à enregistrer
+     */
+    function registerVoter(address _voter) external onlyOwner {
+        require(!voters[_voter].isRegistered, "Voter already registered");
+        voters[_voter] = Voter({
+            isRegistered: true,
+            reputation: MIN_REPUTATION,
+            voteCount: 0
+        });
+        emit VoterRegistered(_voter);
+    }
+
+    /**
+     * @dev Met à jour la réputation d'un votant
+     * @param _voter Adresse du votant
+     * @param _change Changement de réputation (positif ou négatif)
+     */
+    function updateReputation(
+        address _voter,
+        int256 _change
+    ) external onlyOwner {
+        require(voters[_voter].isRegistered, "Voter not registered");
+
+        if (_change > 0) {
+            // Augmentation de réputation
+            uint256 newRep = voters[_voter].reputation + uint256(_change);
+            if (newRep > MAX_REPUTATION) {
+                newRep = MAX_REPUTATION;
+            }
+            voters[_voter].reputation = newRep;
+        } else if (_change < 0) {
+            // Diminution de réputation
+            uint256 change = uint256(-_change);
+            if (change >= voters[_voter].reputation) {
+                voters[_voter].reputation = MIN_REPUTATION;
+            } else {
+                voters[_voter].reputation -= change;
+            }
+        }
+
+        emit ReputationUpdated(_voter, voters[_voter].reputation);
+    }
+
+    /**
+     * @dev Vérifie si un votant est enregistré
+     * @param _voter Adresse du votant à vérifier
+     * @return Vrai si le votant est enregistré, faux sinon
+     */
+    function isRegistered(address _voter) external view returns (bool) {
+        return voters[_voter].isRegistered;
+    }
+
+    /**
+     * @dev Récupère les données d'un votant
+     * @param _voter Adresse du votant
+     * @return Les données du votant
+     */
+    function getVoterData(address _voter) external view returns (Voter memory) {
+        return voters[_voter];
     }
 }

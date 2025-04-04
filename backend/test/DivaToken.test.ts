@@ -16,7 +16,7 @@ describe("DivaToken contract tests:", function () {
         const divaTokenFixture = await loadFixture(deployDivaToken);
         divaToken = divaTokenFixture.divaToken;
         owner = divaTokenFixture.owner;
-        const votingFixture = await loadFixture(deployVoting);
+
 
         [, user1, user2] = await ethers.getSigners();
 
@@ -39,7 +39,6 @@ describe("DivaToken contract tests:", function () {
         })
 
         it("should assign initial supply of 100 million DIVA to the hardcoded addresses", async function () {
-            // Vérifier uniquement les 4 premières adresses selon la constante I_ADDRESSES_LENGTH
             const hardcodedAddresses = foundersList.slice(0, 4);
 
             for (const address of hardcodedAddresses) {
@@ -49,7 +48,6 @@ describe("DivaToken contract tests:", function () {
         })
 
         it("should have the correct total supply", async function () {
-            // 4 adresses avec 100 millions de tokens chacune
             const expectedTotalSupply = INITIAL_MINT_AMOUNT * BigInt(4);
             expect(await divaToken.totalSupply()).to.equal(expectedTotalSupply);
         })
@@ -65,7 +63,7 @@ describe("DivaToken contract tests:", function () {
         })
     })
 
-    describe("1.3 Minting tests", function () {
+    describe("Minting tests", function () {
         it("should allow owner to mint tokens", async function () {
             const initialBalance = await divaToken.balanceOf(user1.address);
             const mintAmount = parseEther("1000");
@@ -103,21 +101,17 @@ describe("DivaToken contract tests:", function () {
         })
     })
 
-    describe("1.4 Transfer tests", function () {
+    describe("Transfer tests", function () {
         it("should allow users to transfer tokens", async function () {
-            // Mint tokens to user1 for testing
             const mintAmount = parseEther("1000");
             await divaToken.connect(owner).mint(user1.address, mintAmount);
 
-            // Check initial balances
             const initialUser1Balance = await divaToken.balanceOf(user1.address);
             const initialUser2Balance = await divaToken.balanceOf(user2.address);
 
-            // Transfer tokens from user1 to user2
             const transferAmount = parseEther("300");
             await divaToken.connect(user1).transfer(user2.address, transferAmount);
 
-            // Check final balances
             const finalUser1Balance = await divaToken.balanceOf(user1.address);
             const finalUser2Balance = await divaToken.balanceOf(user2.address);
 
@@ -142,7 +136,7 @@ describe("DivaToken contract tests:", function () {
         })
     })
 
-    describe("1.5 Approve and TransferFrom tests", function () {
+    describe("Approve and TransferFrom tests", function () {
         it("should allow users to approve spending of their tokens", async function () {
             const approvalAmount = parseEther("500");
             await divaToken.connect(user1).approve(user2.address, approvalAmount);
@@ -200,14 +194,13 @@ describe("DivaToken contract tests:", function () {
     describe("Ownership tests", function () {
         let voting: any;
         let poster1: any;
-        let mockUSDC: any;
+        let divaToken: any;
 
         before(async function () {
             const votingFixture = await loadFixture(deployVoting);
             voting = votingFixture.voting;
             divaToken = votingFixture.divaToken;
             poster1 = votingFixture.poster1;
-            mockUSDC = votingFixture.mockUSDC;
         })
 
         it("should be owned by the Voting contract", async function () {

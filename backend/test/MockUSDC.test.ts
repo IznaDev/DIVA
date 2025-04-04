@@ -36,11 +36,11 @@ describe("MockUSDC contract tests:", function () {
         it("should allow owner to mint tokens", async function () {
             // Vérifions le solde initial du propriétaire
             const initialBalance = await mockUSDC.balanceOf(owner);
-            
+
             // Mintons 1000 tokens avec 18 décimales
             const amount = BigInt(1000 * 10 ** 18);
             await mockUSDC.mint(owner, amount);
-            
+
             // Vérifions que le solde final est correct
             const finalBalance = await mockUSDC.balanceOf(owner);
             expect(finalBalance).to.equal(initialBalance + amount);
@@ -116,23 +116,18 @@ describe("MockUSDC contract tests:", function () {
         })
 
         it("should allow transferFrom with sufficient allowance", async function () {
-            // Mint tokens to user1
             const mintAmount = ethers.parseUnits("100", 6);
             await mockUSDC.mint(user1.address, mintAmount);
 
-            // Approve user2 to spend user1's tokens
             const approvalAmount = ethers.parseUnits("50", 6);
             await mockUSDC.connect(user1).approve(user2.address, approvalAmount);
 
-            // Check initial balances
             const initialUser1Balance = await mockUSDC.balanceOf(user1.address);
             const initialUser2Balance = await mockUSDC.balanceOf(user2.address);
 
-            // User2 transfers tokens from user1 to user2
             const transferAmount = ethers.parseUnits("30", 6);
             await mockUSDC.connect(user2).transferFrom(user1.address, user2.address, transferAmount);
 
-            // Check final balances
             const finalUser1Balance = await mockUSDC.balanceOf(user1.address);
             const finalUser2Balance = await mockUSDC.balanceOf(user2.address);
             const remainingAllowance = await mockUSDC.allowance(user1.address, user2.address);
@@ -149,7 +144,6 @@ describe("MockUSDC contract tests:", function () {
             const chainId = (await ethers.provider.getNetwork()).chainId;
             const mockUSDCAddress = await mockUSDC.getAddress();
 
-            // Manually calculate domain separator
             const domainSeparator = ethers.TypedDataEncoder.hashDomain({
                 name: "MockUSDC",
                 version: "1",
@@ -157,15 +151,10 @@ describe("MockUSDC contract tests:", function () {
                 verifyingContract: mockUSDCAddress
             });
 
-            // Get domain separator from contract (using a view function or event if available)
-            // This depends on how the contract exposes this information
-            // For this test, we'll use the DOMAIN_SEPARATOR method if it exists
-            // If not, we'll skip this test
             try {
                 const contractDomainSeparator = await mockUSDC.DOMAIN_SEPARATOR();
                 expect(contractDomainSeparator).to.equal(domainSeparator);
             } catch (error) {
-                // If the contract doesn't expose DOMAIN_SEPARATOR, we'll skip this test
                 console.log("Skipping domain separator test - function not exposed");
             }
         })
