@@ -23,7 +23,7 @@ export default function PostFeed() {
 
   return (
     <div className="w-full max-w-2xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6 text-center">Fil d'actualité</h2>
+      <h2 className="text-2xl font-bold mb-6 text-center">Fil d&apos;actualité</h2>
 
       {isLoading ? (
         <div className="space-y-4">
@@ -43,7 +43,7 @@ export default function PostFeed() {
         </div>
       ) : posts.length === 0 ? (
         <div className="bg-[#252432] p-6 rounded-lg text-center">
-          <p className="text-gray-400 mb-2">Aucun post n'a encore été publié</p>
+          <p className="text-gray-400 mb-2">Aucun post n&apos;a encore été publié</p>
           <p className="text-sm text-gray-500">Soyez le premier à publier du contenu !</p>
         </div>
       ) : (

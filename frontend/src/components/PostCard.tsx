@@ -378,7 +378,7 @@ export default function PostCard({ id, url, poster, timestamp }: PostCardProps) 
           description: (
             <div className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-[#CF662D]" />
-              <span>Veuillez approuver l'utilisation de vos tokens DIVA...</span>
+              <span>Veuillez approuver l&apos;utilisation de vos tokens DIVA...</span>
             </div>
           ),
           className: "bg-[#1A1927] border border-[#CF662D] text-white",

@@ -1,14 +1,5 @@
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-
-
 import PurchaseDivasButton from "./PurchaseDivasButton";
-
-// Déclaration pour TypeScript - permet d'utiliser window.ethereum
-declare global {
-    interface Window {
-        ethereum?: any;
-    }
-}
 
 const Header = () => {
 

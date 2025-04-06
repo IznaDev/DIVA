@@ -49,7 +49,7 @@ export default function PurchaseDivasButton() {
   const publicClient = usePublicClient();
 
   // Séparer les hooks pour les différentes transactions
-  const { writeContract, data: purchaseHash, error: purchaseError, isPending: isPurchasePending } = useWriteContract();
+  const { writeContract, data: purchaseHash, error: _purchaseError, isPending: isPurchasePending } = useWriteContract();
   const { isSuccess: isPurchaseConfirmed } =
     useWaitForTransactionReceipt({
       hash: purchaseHash,
