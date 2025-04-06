@@ -10,11 +10,11 @@ https://diva-ten.vercel.app/
 
 Les smarts contracts ont été déployé sur le testnet Amoy de Polygon:
 
-mockUSDC.sol : https://amoy.polygonscan.com/address/0x29fc54ecea7d3bf8c2debfffe53aa74c91701719
+mockUSDC.sol : https://amoy.polygonscan.com/token/0x7462dF5399f764d144670929520Cc7E14797f877
 
 Voting.sol et les deux instances de contrats qu'il génère DivaToken.sol et PostManager.sol:
 
-     https://amoy.polygonscan.com/address/0x052fB209A7C6Cd7478862c4b1284A0De84E88292#internaltx
+https://amoy.polygonscan.com/address/0xdcE969C609392f190ecD10B2e6E0e37206e426c2#internaltx
 
 
 ## Vidéo du workflow
