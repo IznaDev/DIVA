@@ -693,7 +693,7 @@ export default function PostCard({ id, url, poster, timestamp }: PostCardProps) 
     if (isVoteSuccess && voteData && isFinalizing) {
       listenForVoteCompletedEvent(voteData);
     }
-  }, [isVoteSuccess, voteData, isFinalizing]);
+  }, [isVoteSuccess, voteData, isFinalizing, listenForVoteCompletedEvent]);
 
   // Obtenir le nom du domaine de l'URL
   let domain = '';
