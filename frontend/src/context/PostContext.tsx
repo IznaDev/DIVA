@@ -16,23 +16,11 @@ const PostContext = createContext<PostContextType | undefined>(undefined);
 
 export function PostProvider({ children }: { children: ReactNode }) {
   const [posts, setPosts] = useState<Post[]>([]);
-  const { address, isConnected } = useAccount();
+  const { isConnected } = useAccount();
   const publicClient = usePublicClient();
 
-  // Log l'état des posts uniquement au débug, pas dans un useEffect pour éviter
-  // de déclencher des rendus supplémentaires
-  const logPosts = () => {
-    console.log("=== État actuel des posts dans le contexte ===");
-    console.log(`Nombre total de posts: ${posts.length}`);
-    posts.forEach((post, index) => {
-      console.log(`Post ${index + 1}:`, {
-        id: post.id?.toString(),
-        url: post.contentUrl,
-        poster: post.poster,
-        timestamp: post.timestamp
-      });
-    });
-  };
+
+
 
   const addPost = (post: Post) => {
     console.log("Tentative d'ajout d'un post au contexte:", post);

@@ -1,13 +1,11 @@
 'use client'
-import { useState, useEffect } from "react";
+
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import PostFeed from "@/components/PostFeed";
-import { useAccount } from "wagmi";
 
 
 export default function Home() {
-  const { isConnected, address } = useAccount();
   return (
     <div className="min-h-screen flex flex-col text-white" style={{ backgroundColor: '#1A1927' }}>
       <Header />

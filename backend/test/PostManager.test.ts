@@ -646,66 +646,155 @@ describe("PostManager via Voting", function () {
       expect(status).to.equal(1); // Completed
     });
 
-  });
+    it("should handle vote with zero totalWinnerWeight in finalizeAndDistribute", async function () {
+      const url = "https://example.com/zero-weight-" + Date.now();
+      const postId = ethers.keccak256(ethers.toUtf8Bytes(url));
+      const deadline = Math.floor(Date.now() / 1000) + 3600;
+      const amount = ethers.parseEther("5");
 
-  // Dans "PostManager additional branch coverage tests"
+      // Créer le post
+      let nonce = await divaToken.nonces(voter1Wallet.address);
+      let value = { owner: voter1Wallet.address, spender: await voting.getAddress(), value: amount, nonce, deadline };
+      let sig = ethers.Signature.from(await voter1Wallet.signTypedData(divaTokenDomain, types, value));
+      await voting.connect(voter1Wallet).createPost(url, amount, deadline, sig.v, sig.r, sig.s);
 
-  it("should handle setVote when quorum is reached exactly at deadline", async function () {
-    // Créer une nouvelle instance de PostManager directement pour ce test
-    const fixture = await loadFixture(deployPostManager);
-    const postManagerInstance = fixture.postManager;
-    const ownerInstance = fixture.owner;
+      // Voter avec voter2 pour Fake
+      nonce = await divaToken.nonces(voter2Wallet.address);
+      value = { owner: voter2Wallet.address, spender: await voting.getAddress(), value: ethers.parseEther("1"), nonce, deadline };
+      sig = ethers.Signature.from(await voter2Wallet.signTypedData(divaTokenDomain, types, value));
+      await voting.connect(voter2Wallet).vote(postId, 2, ethers.parseEther("1"), deadline, sig.v, sig.r, sig.s);
 
-    // Créer un nouvel utilisateur
-    const [, , , voterInstance] = await ethers.getSigners();
+      // Forcer True comme gagnant, mais aucun vote pour True
+      const postKey = ethers.solidityPackedKeccak256(["uint256", "uint256"], [postId, 2]);
+      const totalTrueReputationSlot = ethers.toBigInt(postKey) + 3n;
+      await ethers.provider.send("hardhat_setStorageAt", [
+        await postManager.getAddress(),
+        ethers.toBeHex(totalTrueReputationSlot),
+        ethers.toBeHex(100, 32)
+      ]);
 
-    // Créer un post avec une URL unique
-    const url = "https://example.com/quorum-deadline-test-" + Date.now();
-    const postId = ethers.keccak256(ethers.toUtf8Bytes(url));
-    await postManagerInstance.connect(ownerInstance).createPost(voterInstance.address, url);
+      await ethers.provider.send("evm_increaseTime", [48 * 60 * 60 + 1]);
+      await ethers.provider.send("evm_mine", []);
 
-    // Avancer le temps juste avant la fin de MAX_VOTE_DURATION
-    await ethers.provider.send("evm_increaseTime", [48 * 60 * 60 - 1]);
-    await ethers.provider.send("evm_mine", []);
+      await expect(voting.finalizeAndDistribute(postId))
+        .to.emit(voting, "VoteFinalized")
+        .withArgs(postId, 2, 100, 0, 0, 1, 0);
+    });
 
-    // Enregistrer le votant et lui donner 1000 points de réputation (quorum exact)
-    await postManagerInstance.connect(ownerInstance).registerVoter(voterInstance.address);
-    await postManagerInstance.connect(ownerInstance).updateReputation(voterInstance.address, 999); // 1 + 999 = 1000
+    it("should close vote immediately in setVote if deadline is exceeded", async function () {
+      const url = "https://example.com/deadline-exceeded-" + Date.now();
+      const postId = BigInt(ethers.keccak256(ethers.toUtf8Bytes(url)));
+      const deadline = Math.floor(Date.now() / 1000) + 31536000; // 1 an (365 jours)
+      const amount = parseEther("5");
 
-    // Voter avec le quorum exact
-    await postManagerInstance.connect(ownerInstance).setVote(postId, 1, ethers.parseEther("1"), voterInstance.address);
+      // Créer le post
+      let nonce = await divaToken.nonces(voter1Wallet.address);
+      let value = { owner: voter1Wallet.address, spender: await voting.getAddress(), value: amount, nonce, deadline };
+      let sig = ethers.Signature.from(await voter1Wallet.signTypedData(divaTokenDomain, types, value));
+      await voting.connect(voter1Wallet).createPost(url, amount, deadline, sig.v, sig.r, sig.s);
 
-    // Lorsque le quorum est atteint exactement (1000 points), le vote est automatiquement clôturé
-    const [, status] = await postManagerInstance.getPostStatus(postId);
-    expect(status).to.equal(1); // Complété car le quorum est atteint exactement
-  });
+      // Avancer le temps après la deadline
+      await ethers.provider.send("evm_increaseTime", [3153600]);
+      await ethers.provider.send("evm_mine", []);
 
-  // Dans "Voter Management dans PostManager" > "updateReputation"
-  it("should set reputation to exactly MAX_REPUTATION with precise increase", async function () {
-    // Récupérer une nouvelle instance pour ce test spécifique
-    const fixture = await loadFixture(deployPostManager);
-    const postManagerForTest = fixture.postManager;
-    const ownerForTest = fixture.owner;
-    const [, , , voter1ForTest] = await ethers.getSigners();
+      // Voter après la deadline
+      const voteAmount = parseEther("1");
+      nonce = await divaToken.nonces(voter2Wallet.address);
+      value = { owner: voter2Wallet.address, spender: await voting.getAddress(), value: voteAmount, nonce, deadline };
+      sig = ethers.Signature.from(await voter2Wallet.signTypedData(divaTokenDomain, types, value));
+      await voting.connect(voter2Wallet).vote(postId, 1, voteAmount, deadline, sig.v, sig.r, sig.s);
 
-    await postManagerForTest.connect(ownerForTest).registerVoter(voter1ForTest.address);
-    await postManagerForTest.connect(ownerForTest).updateReputation(voter1ForTest.address, 99); // 1 + 99 = 100
-    const voterData = await postManagerForTest.getVoterData(voter1ForTest.address);
-    expect(voterData.reputation).to.equal(100); // MAX_REPUTATION
-  });
+      const [, status] = await postManager.getPostStatus(postId);
+      expect(status).to.equal(1); // Completed
+    });
 
-  it("should set reputation to MIN_REPUTATION with exact decrease", async function () {
-    // Récupérer une nouvelle instance pour ce test spécifique
-    const fixture = await loadFixture(deployPostManager);
-    const postManagerForTest = fixture.postManager;
-    const ownerForTest = fixture.owner;
-    const [, , , voter1ForTest] = await ethers.getSigners();
+    it("should reverted when setVote is called by a non-owner", async function () {
+      const url = "https://example.com/set-vote-by-non-owner-" + Date.now();
+      const postId = BigInt(ethers.keccak256(ethers.toUtf8Bytes(url)));
+      const deadline = Math.floor(Date.now() / 1000) + 31536000; // 1 an (365 jours)
+      const amount = parseEther("5");
 
-    await postManagerForTest.connect(ownerForTest).registerVoter(voter1ForTest.address);
-    await postManagerForTest.connect(ownerForTest).updateReputation(voter1ForTest.address, 5); // Réputation = 6
-    await postManagerForTest.connect(ownerForTest).updateReputation(voter1ForTest.address, -5); // 6 - 5 = 1
-    const voterData = await postManagerForTest.getVoterData(voter1ForTest.address);
-    expect(voterData.reputation).to.equal(1); // MIN_REPUTATION
-  });
+      // Créer le post
+      let nonce = await divaToken.nonces(voter1Wallet.address);
+      let value = { owner: voter1Wallet.address, spender: await voting.getAddress(), value: amount, nonce, deadline };
+      let sig = ethers.Signature.from(await voter1Wallet.signTypedData(divaTokenDomain, types, value));
+      await voting.connect(voter1Wallet).createPost(url, amount, deadline, sig.v, sig.r, sig.s);
 
-})
+      // Appeler setVote avec un propriétaire non propriétaire
+      await expect(postManager.setVote(postId, 1, amount, voter2Wallet.address))
+        .to.be.revertedWith("Ownable: caller is not the owner");
+    });
+    it("should revert when createPost is called by a non-owner", async function () {
+      await expect(postManager.createPost(voter1Wallet.address, "https://example.com/create-post-by-non-owner-"))
+        .to.be.revertedWith("Ownable: caller is not the owner");
+    });
+    it("should revert when finalizeVote is called by a non-owner", async function () {
+      await expect(postManager.finalizeVote(1))
+        .to.be.revertedWith("Ownable: caller is not the owner");
+    });
+
+
+
+    it("should handle setVote when quorum is reached exactly at deadline", async function () {
+      // Créer une nouvelle instance de PostManager directement pour ce test
+      const fixture = await loadFixture(deployPostManager);
+      const postManagerInstance = fixture.postManager;
+      const ownerInstance = fixture.owner;
+
+      // Créer un nouvel utilisateur
+      const [, , , voterInstance] = await ethers.getSigners();
+
+      // Créer un post avec une URL unique
+      const url = "https://example.com/quorum-deadline-test-" + Date.now();
+      const postId = ethers.keccak256(ethers.toUtf8Bytes(url));
+      await postManagerInstance.connect(ownerInstance).createPost(voterInstance.address, url);
+
+      // Avancer le temps juste avant la fin de MAX_VOTE_DURATION
+      await ethers.provider.send("evm_increaseTime", [48 * 60 * 60 - 1]);
+      await ethers.provider.send("evm_mine", []);
+
+      // Enregistrer le votant et lui donner 1000 points de réputation (quorum exact)
+      await postManagerInstance.connect(ownerInstance).registerVoter(voterInstance.address);
+      await postManagerInstance.connect(ownerInstance).updateReputation(voterInstance.address, 999); // 1 + 999 = 1000
+
+      // Voter avec le quorum exact
+      await postManagerInstance.connect(ownerInstance).setVote(postId, 1, ethers.parseEther("1"), voterInstance.address);
+
+      // Lorsque le quorum est atteint exactement (1000 points), le vote est automatiquement clôturé
+      const [, status] = await postManagerInstance.getPostStatus(postId);
+      expect(status).to.equal(1); // Complété car le quorum est atteint exactement
+    });
+
+    // Dans "Voter Management dans PostManager" > "updateReputation"
+    it("should set reputation to exactly MAX_REPUTATION with precise increase", async function () {
+      // Récupérer une nouvelle instance pour ce test spécifique
+      const fixture = await loadFixture(deployPostManager);
+      const postManagerForTest = fixture.postManager;
+      const ownerForTest = fixture.owner;
+      const [, , , voter1ForTest] = await ethers.getSigners();
+
+      await postManagerForTest.connect(ownerForTest).registerVoter(voter1ForTest.address);
+      await postManagerForTest.connect(ownerForTest).updateReputation(voter1ForTest.address, 99); // 1 + 99 = 100
+      const voterData = await postManagerForTest.getVoterData(voter1ForTest.address);
+      expect(voterData.reputation).to.equal(100); // MAX_REPUTATION
+    });
+
+    it("should set reputation to MIN_REPUTATION with exact decrease", async function () {
+      // Récupérer une nouvelle instance pour ce test spécifique
+      const fixture = await loadFixture(deployPostManager);
+      const postManagerForTest = fixture.postManager;
+      const ownerForTest = fixture.owner;
+      const [, , , voter1ForTest] = await ethers.getSigners();
+
+      await postManagerForTest.connect(ownerForTest).registerVoter(voter1ForTest.address);
+      await postManagerForTest.connect(ownerForTest).updateReputation(voter1ForTest.address, 5); // Réputation = 6
+      await postManagerForTest.connect(ownerForTest).updateReputation(voter1ForTest.address, -5); // 6 - 5 = 1
+      const voterData = await postManagerForTest.getVoterData(voter1ForTest.address);
+      expect(voterData.reputation).to.equal(1); // MIN_REPUTATION
+    });
+
+
+
+  })
+
+});

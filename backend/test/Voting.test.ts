@@ -126,6 +126,36 @@ describe("Voting contract tests:", function () {
 
             expect(finalDivaBalance).to.equal(initialDivaBalance + expectedDivaAmount);
         });
+        it("should revert when the amount is 0", async function () {
+            onst usdcAmount = ethers.parseEther("10");
+            await mockUSDC.mint(voter1Wallet.address, usdcAmount);
+
+            const deadline = Math.floor(Date.now() / 1000) + 31536000; // 1 an (365 jours)000; // 1 an (365 jours)
+            const nonce = await mockUSDC.nonces(voter1Wallet.address);
+
+            const value = {
+                owner: voter1Wallet.address,
+                spender: await voting.getAddress(),
+                value: usdcAmount,
+                nonce: nonce,
+                deadline: deadline
+            };
+
+            const signature = await voter1Wallet.signTypedData(mockUSDCDomain, types, value);
+            const { v, r, s } = ethers.Signature.from(signature);
+
+            const initialDivaBalance = await divaToken.balanceOf(voter1Wallet.address);
+
+            await voting.connect(voter1Wallet).purchaseDivas(
+                usdcAmount,
+                deadline,
+                v,
+                r,
+                s
+            );
+            const usdcAmount = 0;
+            await expect(voting.purchaseDivas(usdcAmount, 0, 0, "0x00", "0x00")).to.be.revertedWith("Amount must be greater than 0");
+        })
 
         it("should revert when permit signature has expired", async function () {
             const usdcAmount = ethers.parseEther("10");
@@ -808,6 +838,88 @@ describe("Voting contract tests:", function () {
 
         });
 
+        it("should return all stakes to multiple voters in 50/50 case", async function () {
+            const url = `https://example.com/multi-50-50-${Date.now()}`;
+            const postId = BigInt(ethers.keccak256(ethers.toUtf8Bytes(url)));
+            const deadline = Math.floor(Date.now() / 1000) + 31536000;
+            const amount = parseEther("5");
+
+            // Create post
+            let nonce = await divaToken.nonces(voter1Wallet.address);
+            let value = { owner: voter1Wallet.address, spender: await voting.getAddress(), value: amount, nonce, deadline };
+            let sig = ethers.Signature.from(await voter1Wallet.signTypedData(divaTokenDomain, types, value));
+            await voting.connect(voter1Wallet).createPost(url, amount, deadline, sig.v, sig.r, sig.s);
+
+            // Voter1 votes TRUE
+            nonce = await divaToken.nonces(voter1Wallet.address);
+            value = { owner: voter1Wallet.address, spender: await voting.getAddress(), value: parseEther("5"), nonce, deadline };
+            sig = ethers.Signature.from(await voter1Wallet.signTypedData(divaTokenDomain, types, value));
+            await voting.connect(voter1Wallet).vote(postId, 1, parseEther("5"), deadline, sig.v, sig.r, sig.s);
+
+            // Voter2 votes FAKE
+            nonce = await divaToken.nonces(voter2Wallet.address);
+            value = { owner: voter2Wallet.address, spender: await voting.getAddress(), value: parseEther("5"), nonce, deadline };
+            sig = ethers.Signature.from(await voter2Wallet.signTypedData(divaTokenDomain, types, value));
+            await voting.connect(voter2Wallet).vote(postId, 2, parseEther("5"), deadline, sig.v, sig.r, sig.s);
+
+            // Set 50/50 reputation
+            const postManagerAddress = await postManager.getAddress();
+            const postKey = ethers.solidityPackedKeccak256(["uint256", "uint256"], [postId, 2]);
+            const totalTrueReputationSlot = ethers.toBigInt(postKey) + 3n;
+            const totalFakeReputationSlot = ethers.toBigInt(postKey) + 4n;
+            await ethers.provider.send("hardhat_setStorageAt", [
+                postManagerAddress,
+                ethers.toBeHex(totalTrueReputationSlot),
+                ethers.toBeHex(50, 32)
+            ]);
+            await ethers.provider.send("hardhat_setStorageAt", [
+                postManagerAddress,
+                ethers.toBeHex(totalFakeReputationSlot),
+                ethers.toBeHex(50, 32)
+            ]);
+
+            // Record balances
+            const voter1BalanceBefore = await divaToken.balanceOf(voter1Wallet.address);
+            const voter2BalanceBefore = await divaToken.balanceOf(voter2Wallet.address);
+
+            // Finalize
+            await ethers.provider.send("evm_increaseTime", [86400]);
+            await ethers.provider.send("evm_mine", []);
+            await voting.connect(voter1Wallet).finalizeAndDistribute(postId);
+            const addedAmount = parseEther("5");
+
+            // Check balances
+            const voter1BalanceAfter = await divaToken.balanceOf(voter1Wallet.address);
+            const voter2BalanceAfter = await divaToken.balanceOf(voter2Wallet.address);
+            expect(voter1BalanceAfter).to.equal(voter1BalanceBefore + addedAmount);
+            expect(voter2BalanceAfter).to.equal(voter2BalanceBefore + addedAmount);
+        });
+
+        it("should skip voters with no vote in distributeRewards", async function () {
+            const url = `https://example.com/no-vote-skip-${Date.now()}`;
+            const postId = BigInt(ethers.keccak256(ethers.toUtf8Bytes(url)));
+            const deadline = Math.floor(Date.now() / 1000) + 31536000;
+            const amount = parseEther("5");
+
+            // Create post
+            let nonce = await divaToken.nonces(voter1Wallet.address);
+            let value = { owner: voter1Wallet.address, spender: await voting.getAddress(), value: amount, nonce, deadline };
+            let sig = ethers.Signature.from(await voter1Wallet.signTypedData(divaTokenDomain, types, value));
+            await voting.connect(voter1Wallet).createPost(url, amount, deadline, sig.v, sig.r, sig.s);
+
+            // Voter2 votes TRUE
+            nonce = await divaToken.nonces(voter2Wallet.address);
+            value = { owner: voter2Wallet.address, spender: await voting.getAddress(), value: parseEther("5"), nonce, deadline };
+            sig = ethers.Signature.from(await voter2Wallet.signTypedData(divaTokenDomain, types, value));
+            await voting.connect(voter2Wallet).vote(postId, 1, parseEther("5"), deadline, sig.v, sig.r, sig.s);
+
+            // Voter3 doesn’t vote but is in the system (ensure they have reputation)
+            await expect(postManager.connect(voter1Wallet).updateReputation(voter3Wallet.address, 100))
+                .to.be.revertedWith("Ownable: caller is not the owner");
+
+
+        });
+
         it("should correctly handle 50/50 equality case", async function () {
             // Créer un nouveau post pour tester le cas d'égalité
             const equalityUrl = "https://example.com/equality-test-" + Date.now();
@@ -1338,6 +1450,7 @@ describe("Voting contract tests:", function () {
                 voting.connect(voter1Wallet).vote(postId, 3, amount, deadline, v, r, s)
             ).to.be.reverted;
         });
+
 
 
 

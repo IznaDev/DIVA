@@ -37,12 +37,9 @@ export default function PostCard({ id, url, poster, timestamp }: PostCardProps) 
   const publicClient = usePublicClient();
   const { toast } = useToast();
 
-  // Déterminer quel client utiliser en fonction de l'environnement
-  const isDev = process.env.NODE_ENV === 'development';
-
   // Hooks pour écrire dans le contrat et attendre la confirmation
   const { writeContract: writeVoteContract, data: voteData } = useWriteContract();
-  const { isLoading: isVoteLoading, isSuccess: isVoteSuccess } = useWaitForTransactionReceipt({
+  const { isSuccess: isVoteSuccess } = useWaitForTransactionReceipt({
     hash: voteData,
   });
 
@@ -374,7 +371,7 @@ export default function PostCard({ id, url, poster, timestamp }: PostCardProps) 
 
       // Si l'allowance est insuffisante, effectuer une approbation explicite
       if (allowance < voteAmount) {
-        console.log('Allowance insuffisante, demande d\'approbation...');
+        console.log('Allowance insuffisante, demande d approbation...');
 
         toast({
           title: "Approbation nécessaire",
@@ -540,7 +537,7 @@ export default function PostCard({ id, url, poster, timestamp }: PostCardProps) 
         }
       }, 5000); // Attendre 5 secondes
 
-    } catch (error: any) {
+    } catch (error) {
       console.error("Erreur lors de la finalisation du vote:", error);
       toast({
         title: "Erreur",
@@ -705,6 +702,7 @@ export default function PostCard({ id, url, poster, timestamp }: PostCardProps) 
   } catch (error) {
     console.error("URL invalide:", url);
     domain = url;
+    console.log(error);
   }
 
   // Formater l'horodatage

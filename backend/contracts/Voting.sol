@@ -12,41 +12,47 @@ import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "./DivaToken.sol";
 import "./PostManager.sol";
 
+/// @title Voting Contract
+/// @notice Gère l'achat de tokens DIVA, la création de posts et les votes
 contract Voting is Ownable, ReentrancyGuard, EIP712 {
     using SafeMath for uint256;
     using ECDSA for bytes32;
-    // Constants
-    uint256 public constant MIN_STAKE_AMOUNT = 100000000000000000; // 0.1 DIVAS (18 décimales)
-    uint256 public constant MAX_STAKE_AMOUNT = 50 * 1e18; // 50 DIVAS
 
-    uint256 public constant POST_STAKE_AMOUNT = 5e18; // 1 DIVA  pour poster
+    uint256 public constant MIN_STAKE_AMOUNT = 100000000000000000;
+    uint256 public constant MAX_STAKE_AMOUNT = 50 * 1e18;
 
-    uint256 public constant DIVA_PRICE = 1e16; // 0.01 USDC per DIVA
+    uint256 public constant POST_STAKE_AMOUNT = 5e18;
 
-    // Variables
+    uint256 public constant DIVA_PRICE = 1e16;
+
+    mapping(uint256 => bool) public rewardsDistributed;
+
     IERC20 public mockUSDC;
     DivaToken public divaToken;
     PostManager public postManager;
 
-    // Events
     event TransferDivas(address indexed to, uint256 value);
     event VoteFailed(uint256 indexed postId, uint256 timestamp);
     event ReputationUpdated(address indexed voter, uint256 newReputation);
 
-    //Constructor
+    /// @notice Initialise le contrat avec l'adresse USDC
+    /// @param _mockUSDC Adresse du contrat USDC
     constructor(address _mockUSDC) EIP712("Voting", "1") {
         mockUSDC = IERC20(_mockUSDC);
 
-        // Déployer les contrats
         divaToken = new DivaToken();
         postManager = new PostManager();
 
-        // Transférer la propriété des contrats au contrat Voting
         divaToken.transferOwnership(address(this));
         postManager.transferOwnership(address(this));
     }
 
-    //Functions
+    /// @notice Achète des tokens DIVA avec USDC via EIP-2612
+    /// @param _amount Montant d'USDC à échanger
+    /// @param _deadline Date limite de la signature
+    /// @param _v Composante v de la signature
+    /// @param _r Composante r de la signature
+    /// @param _s Composante s de la signature
     function purchaseDivas(
         uint256 _amount,
         uint256 _deadline,
@@ -82,6 +88,13 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
         emit TransferDivas(msg.sender, _divaAmount);
     }
 
+    /// @notice Crée un nouveau post
+    /// @param _contentUrl URL du contenu
+    /// @param _amount Montant approuvé (doit être >= POST_STAKE_AMOUNT)
+    /// @param _deadline Date limite de la signature
+    /// @param _v Composante v de la signature
+    /// @param _r Composante r de la signature
+    /// @param _s Composante s de la signature
     function createPost(
         string calldata _contentUrl,
         uint256 _amount,
@@ -114,6 +127,14 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
         postManager.createPost(msg.sender, _contentUrl);
     }
 
+    /// @notice Vote sur un post
+    /// @param _postId ID du post
+    /// @param _choice Option de vote (True/False)
+    /// @param _amount Montant de DIVA à staker
+    /// @param _deadline Date limite de la signature
+    /// @param _v Composante v de la signature
+    /// @param _r Composante r de la signature
+    /// @param _s Composante s de la signature
     function vote(
         uint256 _postId,
         PostManager.VoteOption _choice,
@@ -127,7 +148,6 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
         require(_amount >= MIN_STAKE_AMOUNT, "Stake too low");
         require(_amount <= MAX_STAKE_AMOUNT, "Stake too high");
 
-        // Utiliser permit pour approuver les tokens DIVA
         IERC20Permit(address(divaToken)).permit(
             msg.sender,
             address(this),
@@ -146,10 +166,14 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
         postManager.setVote(_postId, _choice, _amount, msg.sender);
     }
 
-    // Mapping pour suivre les récompenses distribuées
-    mapping(uint256 => bool) public rewardsDistributed;
-
-    // Événement émis lors de la finalisation et distribution
+    /// @notice Émis lors de la finalisation d'un vote
+    /// @param postId ID du post finalisé
+    /// @param result Résultat du vote (True/False)
+    /// @param majority Pourcentage de la majorité
+    /// @param totalRewarded Total des récompenses distribuées
+    /// @param totalReturned Total des stakes retournés
+    /// @param winnerCount Nombre de gagnants
+    /// @param loserCount Nombre de perdants
     event VoteFinalized(
         uint256 indexed postId,
         PostManager.VoteOption result,
@@ -160,18 +184,14 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
         uint256 loserCount
     );
 
-    /**
-     * @dev Finalise un vote et distribue les récompenses aux votants
-     * @param _postId L'identifiant du post à finaliser
-     * @return Succès de l'opération
-     */
+    /// @notice Finalise un vote et distribue les récompenses
+    /// @param _postId ID du post à finaliser
+    /// @return Succès de l'opération
     function finalizeAndDistribute(
         uint256 _postId
     ) external nonReentrant returns (bool) {
-        // Vérifier que les récompenses n'ont pas déjà été distribuées
         require(!rewardsDistributed[_postId], "Rewards already distributed");
 
-        // 1. Vérifier l'état du post
         (bool exists, PostManager.VoteStatus status) = postManager
             .getPostStatus(_postId);
         require(exists, "Post does not exist");
@@ -186,10 +206,8 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
             "Voting not completed"
         );
 
-        // 4. Marquer comme distribuées pour éviter les redistributions
         rewardsDistributed[_postId] = true;
 
-        // 5. Récupérer les totaux et vérifier si le vote a reçu des participations
         (
             uint256 totalTrueStake,
             uint256 totalFakeStake,
@@ -211,14 +229,10 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
             return true;
         }
 
-        // 6. Déterminer le résultat et les pourcentages
         uint256 truePercentage = (totalTrueReputation * 100) / totalVotes;
         PostManager.VoteOption winningOption;
         uint256 majority;
-
-        // 7. Gérer le cas d'égalité (50/50)
         if (truePercentage == 50) {
-            // En cas d'égalité, tous les votants récupèrent leur mise complète
             uint256 returnedAmount = _returnAllStakes(_postId);
             emit VoteFinalized(
                 _postId,
@@ -230,9 +244,7 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
                 0
             );
             return true;
-        }
-        // 8. Déterminer le gagnant
-        else if (truePercentage > 50) {
+        } else if (truePercentage > 50) {
             winningOption = PostManager.VoteOption.True;
             majority = truePercentage;
         } else {
@@ -240,7 +252,6 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
             majority = 100 - truePercentage;
         }
 
-        // 9. Distribuer les récompenses
         (
             uint256 totalRewarded,
             uint256 totalReturned,
@@ -253,7 +264,6 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
                 winningOption
             );
 
-        // 10. Émettre l'événement de finalisation avec toutes les statistiques
         emit VoteFinalized(
             _postId,
             winningOption,
@@ -282,10 +292,7 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
                 voter
             );
 
-            if (
-                voteData.choice != PostManager.VoteOption.None &&
-                !voteData.withdrawn
-            ) {
+            if (voteData.choice != PostManager.VoteOption.None) {
                 divaToken.transfer(voter, voteData.stakeAmount);
                 returnedAmount += voteData.stakeAmount;
             }
@@ -318,7 +325,6 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
             ? totalFakeStake
             : totalTrueStake;
 
-        // Seulement 40% des jetons des perdants sont confisqués pour les récompenses
         return (totalLosersStake * 40) / 100;
     }
 
@@ -339,7 +345,7 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
                 voter
             );
 
-            if (voteData.choice == winningOption && !voteData.withdrawn) {
+            if (voteData.choice == winningOption) {
                 totalWinnerWeight += sqrt(voteData.stakeAmount);
             }
         }
@@ -357,11 +363,9 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
     ) private pure returns (uint256) {
         if (totalWinnerWeight == 0) return 0;
 
-        // Calcul équitable basé sur la racine carrée de la mise
         uint256 voterWeight = sqrt(voteData.stakeAmount);
         uint256 reward = (totalSlashed * voterWeight) / totalWinnerWeight;
 
-        // Limiter la récompense à 25% de la mise pour éviter les déséquilibres
         uint256 maxReward = (voteData.stakeAmount * 25) / 100;
         return (reward > maxReward) ? maxReward : reward;
     }
@@ -381,10 +385,8 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
             totalWinnerWeight
         );
 
-        // Transférer mise + récompense
         divaToken.transfer(voter, voteData.stakeAmount + reward);
 
-        // Augmenter la réputation du gagnant
         postManager.updateReputation(voter, 1);
 
         return reward;
@@ -397,12 +399,9 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
         address voter,
         PostManager.Vote memory voteData
     ) private returns (uint256 returnAmount) {
-        // PERDANT: récupère 60% de sa mise
         returnAmount = (voteData.stakeAmount * 60) / 100;
 
         divaToken.transfer(voter, returnAmount);
-
-        // Diminuer la réputation du perdant
         postManager.updateReputation(voter, -1);
 
         return returnAmount;
@@ -444,11 +443,7 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
                 voter
             );
 
-            // Ignorer les votes nuls ou retirés
-            if (
-                voteData.choice == PostManager.VoteOption.None ||
-                voteData.withdrawn
-            ) continue;
+            if (voteData.choice == PostManager.VoteOption.None) continue;
 
             if (voteData.choice == winningOption) {
                 uint256 reward = _processWinner(
@@ -474,6 +469,9 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
      * @param x Le nombre dont on veut la racine carrée
      * @return y La racine carrée entière de x
      */
+    /// @notice Calcule la racine carrée d'un nombre
+    /// @param x Nombre à calculer
+    /// @return y Racine carrée de x
     function sqrt(uint256 x) public pure returns (uint256 y) {
         if (x == 0) return 0;
         else if (x <= 3) return 1;

@@ -1,15 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { VOTING_CONTRACT_ADDRESS, VOTING_CONTRACT_ABI, MOCK_USDC_ADDRESS, MOCK_USDC_ABI, DIVA_TOKEN_ADDRESS, DIVA_TOKEN_ABI, POST_MANAGER_ADDRESS, POST_MANAGER_ABI } from '@/constants';
+import { useState, useEffect } from 'react';
+import { VOTING_CONTRACT_ADDRESS, VOTING_CONTRACT_ABI, MOCK_USDC_ADDRESS, MOCK_USDC_ABI, DIVA_TOKEN_ADDRESS, DIVA_TOKEN_ABI, POST_MANAGER_ADDRESS } from '@/constants';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, usePublicClient, BaseError } from 'wagmi';
-import { parseEther, formatEther, parseAbiItem, formatUnits, parseUnits } from 'viem';
+import { parseEther, parseAbiItem, formatUnits, parseUnits } from 'viem';
 import Image from 'next/image';
 import { ethers } from 'ethers';
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { usePostContext } from "@/context/PostContext";
-import { Post } from "@/types";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,14 +50,14 @@ export default function PurchaseDivasButton() {
 
   // Séparer les hooks pour les différentes transactions
   const { writeContract, data: purchaseHash, error: purchaseError, isPending: isPurchasePending } = useWriteContract();
-  const { isLoading: isPurchaseConfirming, isSuccess: isPurchaseConfirmed } =
+  const { isSuccess: isPurchaseConfirmed } =
     useWaitForTransactionReceipt({
       hash: purchaseHash,
     });
 
   // Hook spécifique pour la création de post
-  const { writeContract: writePostContract, data: postHash, error: postingError, isPending: isPostPending } = useWriteContract();
-  const { isLoading: isPostConfirming, isSuccess: isPostConfirmed } =
+  const { writeContract: writePostContract, data: postHash } = useWriteContract();
+  const { isSuccess: isPostConfirmed } =
     useWaitForTransactionReceipt({
       hash: postHash,
     });
@@ -95,7 +94,7 @@ export default function PurchaseDivasButton() {
   }, [address, isConnected]);
 
   //ajout d'un état pour suivre les transactions déjà traitées
-  const [processedTransactions, setProcessedTransactions] = useState<string[]>(() => {
+  const [processedTransactions] = useState<string[]>(() => {
     // Récupérer les transactions déjà traitées du stockage local
     const savedTransactions = localStorage.getItem('processedDivaTransactions');
     return savedTransactions ? JSON.parse(savedTransactions) : [];
@@ -563,6 +562,7 @@ export default function PurchaseDivasButton() {
       new URL(postUrl);
     } catch (e) {
       setPostError('Veuillez entrer une URL valide');
+      console.log(e);
       return;
     }
 

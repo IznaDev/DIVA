@@ -1,5 +1,6 @@
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import Image from "next/image";
+
+
 import PurchaseDivasButton from "./PurchaseDivasButton";
 
 // Déclaration pour TypeScript - permet d'utiliser window.ethereum

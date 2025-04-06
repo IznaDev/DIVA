@@ -9,6 +9,9 @@ const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || "";
 const SEPOLIA_PRIVATE_KEY = process.env.SEPOLIA_PRIVATE_KEY || "";
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
 const COINMARKETCAP_API_KEY = process.env.COINMARKETCAP_API_KEY || "";
+const AMOY_RPC_URL = process.env.AMOY_RPC_URL || "";
+const AMOY_PRIVATE_KEY = process.env.AMOY_PRIVATE_KEY || "";
+const AMOY_API_KEY = process.env.AMOY_API_KEY || "";
 
 const config: HardhatUserConfig = {
 
@@ -31,11 +34,19 @@ const config: HardhatUserConfig = {
       url: SEPOLIA_RPC_URL,
       accounts: SEPOLIA_PRIVATE_KEY ? [SEPOLIA_PRIVATE_KEY] : [],
       chainId: 11155111,
+    },
+    amoy: {
+      url: AMOY_RPC_URL,
+      accounts: AMOY_PRIVATE_KEY ? [AMOY_PRIVATE_KEY] : [],
+      chainId: 80002,
     }
   },
 
   etherscan: {
-    apiKey: ETHERSCAN_API_KEY
+    apiKey: {
+      sepolia: ETHERSCAN_API_KEY,
+      amoy: AMOY_API_KEY
+    }
   },
 
   gasReporter: {

@@ -1,10 +1,12 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+/// @title MockUSDC
+/// @notice Token ERC20 simulant l'USDC pour les tests
 contract MockUSDC is ERC20, Ownable, ERC20Permit {
     uint256 constant TEST_ACCOUNTS_LENGTH = 10;
 
@@ -21,8 +23,8 @@ contract MockUSDC is ERC20, Ownable, ERC20Permit {
         address(0x14dC79964da2C08b23698B3D3cc7Ca32193d9955)
     ];
 
+    /// @notice Initialise le token et distribue l'approvisionnement initial
     constructor() ERC20("MockUSDC", "MUSDC") ERC20Permit("MockUSDC") {
-        // Mint initial supply to the deployer (1 million USDC)
         _mint(msg.sender, 1000 * 10 ** 6);
         transferOwnership(msg.sender);
 
@@ -31,18 +33,15 @@ contract MockUSDC is ERC20, Ownable, ERC20Permit {
         }
     }
 
-    /**
-     * @dev Mints tokens to the specified address
-     * @param to The address that will receive the minted tokens
-     * @param amount The amount of tokens to mint
-     */
+    /// @notice Crée de nouveaux tokens
+    /// @param to Adresse du destinataire
+    /// @param amount Montant à créer
     function mint(address to, uint256 amount) public onlyOwner {
         _mint(to, amount);
     }
 
-    /**
-     * @dev Returns the number of decimals used for token - 6 for USDC
-     */
+    /// @notice Retourne le nombre de décimales du token (6 pour USDC)
+    /// @return Nombre de décimales
     function decimals() public pure override returns (uint8) {
         return 6;
     }

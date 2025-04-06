@@ -3,8 +3,9 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+/// @title PostManager
+/// @notice Gère les posts et les votes dans le système DIVA
 contract PostManager is Ownable {
-    // Constants
     uint256 public constant QUORUM_POINTS = 1000;
     uint256 public constant VOTE_DURATION_AFTER_QUORUM = 24 hours;
     uint256 public constant MAX_VOTE_DURATION = 48 hours;
@@ -32,7 +33,6 @@ contract PostManager is Ownable {
         VoteOption choice;
         uint256 stakeAmount;
         uint256 timestamp;
-        bool withdrawn;
     }
 
     struct Post {
@@ -69,7 +69,6 @@ contract PostManager is Ownable {
         VoteOption vote,
         uint256 stakeAmount
     );
-    event VoteWithdrawn(uint256 indexed postId, address indexed voter);
 
     event VoteCompleted(
         uint256 indexed postId,
@@ -80,11 +79,15 @@ contract PostManager is Ownable {
     event VoterRegistered(address indexed voter);
     event ReputationUpdated(address indexed voter, uint256 newReputation);
 
-    // Mapping pour stocker les données des votants
     mapping(address => Voter) public voters;
 
+    /// @notice Initialise le contrat
     constructor() {}
 
+    /// @notice Crée un nouveau post
+    /// @param _poster Adresse du créateur
+    /// @param _contentUrl URL du contenu
+    /// @return ID du post créé
     function createPost(
         address _poster,
         string calldata _contentUrl
@@ -107,6 +110,11 @@ contract PostManager is Ownable {
         return _postId;
     }
 
+    /// @notice Enregistre un vote sur un post
+    /// @param _postId ID du post
+    /// @param _vote Option de vote (True/Fake)
+    /// @param _stakeAmount Montant mis en jeu
+    /// @param _voters Adresse du votant
     function setVote(
         uint256 _postId,
         VoteOption _vote,
@@ -142,8 +150,7 @@ contract PostManager is Ownable {
         _post.votes[_voters] = Vote({
             choice: _vote,
             stakeAmount: _stakeAmount,
-            timestamp: block.timestamp,
-            withdrawn: false
+            timestamp: block.timestamp
         });
 
         _post.voters.push(_voters);
@@ -171,11 +178,12 @@ contract PostManager is Ownable {
         emit VoteCast(_postId, _voters, _vote, _stakeAmount);
     }
 
+    /// @notice Finalise un vote
+    /// @param _postId ID du post
     function finalizeVote(uint256 _postId) external onlyOwner {
         Post storage post = posts[_postId];
         require(post.status == VoteStatus.Active, "Vote already finalized");
 
-        // Vérifier si le délai est passé ou bien si l'appel vient du contrat owner
         bool isTimeExpired = false;
         uint256 deadline;
 
@@ -196,10 +204,9 @@ contract PostManager is Ownable {
         uint256 totalVotes = post.totalTrueReputation +
             post.totalFakeReputation;
 
-        // Si aucun vote n'a été émis, considérer le résultat comme nul
         if (totalVotes == 0) {
             result = VoteOption.None;
-            emit VoteCompleted(_postId, result, 50); // Pas de votes
+            emit VoteCompleted(_postId, result, 50);
         } else {
             uint256 trueVotes = (post.totalTrueReputation * 100) / totalVotes;
 
@@ -211,7 +218,7 @@ contract PostManager is Ownable {
                 emit VoteCompleted(_postId, result, 100 - trueVotes);
             } else {
                 result = VoteOption.None;
-                emit VoteCompleted(_postId, result, 50); // No clear majority
+                emit VoteCompleted(_postId, result, 50);
             }
         }
     }
@@ -276,10 +283,8 @@ contract PostManager is Ownable {
         );
     }
 
-    /**
-     * @dev Enregistre un nouveau votant
-     * @param _voter Adresse du votant à enregistrer
-     */
+    /// @notice Enregistre un nouveau votant
+    /// @param _voter Adresse du votant
     function registerVoter(address _voter) external onlyOwner {
         require(!voters[_voter].isRegistered, "Voter already registered");
         voters[_voter] = Voter({
@@ -290,11 +295,9 @@ contract PostManager is Ownable {
         emit VoterRegistered(_voter);
     }
 
-    /**
-     * @dev Met à jour la réputation d'un votant
-     * @param _voter Adresse du votant
-     * @param _change Changement de réputation (positif ou négatif)
-     */
+    /// @notice Met à jour la réputation d'un votant
+    /// @param _voter Adresse du votant
+    /// @param _change Changement de réputation (positif ou négatif)
     function updateReputation(
         address _voter,
         int256 _change
@@ -302,14 +305,12 @@ contract PostManager is Ownable {
         require(voters[_voter].isRegistered, "Voter not registered");
 
         if (_change > 0) {
-            // Augmentation de réputation
             uint256 newRep = voters[_voter].reputation + uint256(_change);
             if (newRep > MAX_REPUTATION) {
                 newRep = MAX_REPUTATION;
             }
             voters[_voter].reputation = newRep;
         } else if (_change < 0) {
-            // Diminution de réputation
             uint256 change = uint256(-_change);
             if (change >= voters[_voter].reputation) {
                 voters[_voter].reputation = MIN_REPUTATION;
@@ -321,20 +322,16 @@ contract PostManager is Ownable {
         emit ReputationUpdated(_voter, voters[_voter].reputation);
     }
 
-    /**
-     * @dev Vérifie si un votant est enregistré
-     * @param _voter Adresse du votant à vérifier
-     * @return Vrai si le votant est enregistré, faux sinon
-     */
+    /// @notice Vérifie si un votant est enregistré
+    /// @param _voter Adresse du votant
+    /// @return Statut d'enregistrement
     function isRegistered(address _voter) external view returns (bool) {
         return voters[_voter].isRegistered;
     }
 
-    /**
-     * @dev Récupère les données d'un votant
-     * @param _voter Adresse du votant
-     * @return Les données du votant
-     */
+    /// @notice Récupère les données d'un votant
+    /// @param _voter Adresse du votant
+    /// @return Les données du votant
     function getVoterData(address _voter) external view returns (Voter memory) {
         return voters[_voter];
     }
