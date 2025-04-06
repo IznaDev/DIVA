@@ -127,7 +127,7 @@ describe("Voting contract tests:", function () {
             expect(finalDivaBalance).to.equal(initialDivaBalance + expectedDivaAmount);
         });
         it("should revert when the amount is 0", async function () {
-            onst usdcAmount = ethers.parseEther("10");
+            const usdcAmount = ethers.parseEther("10");
             await mockUSDC.mint(voter1Wallet.address, usdcAmount);
 
             const deadline = Math.floor(Date.now() / 1000) + 31536000; // 1 an (365 jours)000; // 1 an (365 jours)
@@ -144,17 +144,15 @@ describe("Voting contract tests:", function () {
             const signature = await voter1Wallet.signTypedData(mockUSDCDomain, types, value);
             const { v, r, s } = ethers.Signature.from(signature);
 
-            const initialDivaBalance = await divaToken.balanceOf(voter1Wallet.address);
 
-            await voting.connect(voter1Wallet).purchaseDivas(
-                usdcAmount,
+
+            await expect(voting.connect(voter1Wallet).purchaseDivas(
+                BigInt(0),
                 deadline,
                 v,
                 r,
                 s
-            );
-            const usdcAmount = 0;
-            await expect(voting.purchaseDivas(usdcAmount, 0, 0, "0x00", "0x00")).to.be.revertedWith("Amount must be greater than 0");
+            )).to.be.revertedWith("Amount must be greater than 0");
         })
 
         it("should revert when permit signature has expired", async function () {
@@ -639,6 +637,7 @@ describe("Voting contract tests:", function () {
                 voting.connect(voter1Wallet).finalizeAndDistribute(finalizePostId)
             ).to.be.not.reverted;
         });
+
 
         it("should handle post with no votes", async function () {
             // Créer un post sans vote

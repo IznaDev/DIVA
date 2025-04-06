@@ -1,7 +1,7 @@
-export const VOTING_CONTRACT_ADDRESS = "0x052fB209A7C6Cd7478862c4b1284A0De84E88292";
-export const MOCK_USDC_ADDRESS = "0x29fC54EceA7d3BF8c2DEbFfFe53aa74c91701719";
-export const POST_MANAGER_ADDRESS = "0xf1B4601610877c62C55de3B50edC825452cF2dC2";
-export const DIVA_TOKEN_ADDRESS = "0xb9BDfEeEd0868a933180Ae5162e4DBdbAc5bF3F0";
+export const VOTING_CONTRACT_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+export const MOCK_USDC_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+export const POST_MANAGER_ADDRESS = "0x9f1ac54BEF0DD2f6f3462EA0fa94fC62300d3a8e";
+export const DIVA_TOKEN_ADDRESS = "0xCafac3dD18aC6c6e92c921884f9E4176737C052c";
 
 
 
@@ -1158,25 +1158,6 @@ export const POST_MANAGER_ABI = [
         "inputs": [
             {
                 "indexed": true,
-                "internalType": "uint256",
-                "name": "postId",
-                "type": "uint256"
-            },
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "voter",
-                "type": "address"
-            }
-        ],
-        "name": "VoteWithdrawn",
-        "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
                 "internalType": "address",
                 "name": "voter",
                 "type": "address"
@@ -1376,11 +1357,6 @@ export const POST_MANAGER_ABI = [
                         "internalType": "uint256",
                         "name": "timestamp",
                         "type": "uint256"
-                    },
-                    {
-                        "internalType": "bool",
-                        "name": "withdrawn",
-                        "type": "bool"
                     }
                 ],
                 "internalType": "struct PostManager.Vote",

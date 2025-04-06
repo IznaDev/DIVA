@@ -59,7 +59,7 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
         uint8 _v,
         bytes32 _r,
         bytes32 _s
-    ) external nonReentrant {
+    ) external {
         require(_amount > 0, "Amount must be greater than 0");
 
         IERC20Permit(address(mockUSDC)).permit(
@@ -102,7 +102,7 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
         uint8 _v,
         bytes32 _r,
         bytes32 _s
-    ) external nonReentrant {
+    ) external {
         require(postManager.isRegistered(msg.sender), "Voter not registered");
 
         IERC20Permit(address(divaToken)).permit(
@@ -143,7 +143,7 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
         uint8 _v,
         bytes32 _r,
         bytes32 _s
-    ) external nonReentrant {
+    ) external {
         require(postManager.isRegistered(msg.sender), "Voter not registered");
         require(_amount >= MIN_STAKE_AMOUNT, "Stake too low");
         require(_amount <= MAX_STAKE_AMOUNT, "Stake too high");
@@ -199,12 +199,6 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
         if (status == PostManager.VoteStatus.Active) {
             postManager.finalizeVote(_postId);
         }
-
-        (, status) = postManager.getPostStatus(_postId);
-        require(
-            status == PostManager.VoteStatus.Completed,
-            "Voting not completed"
-        );
 
         rewardsDistributed[_postId] = true;
 
