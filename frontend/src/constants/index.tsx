@@ -3,8 +3,6 @@ export const MOCK_USDC_ADDRESS = "0x29fC54EceA7d3BF8c2DEbFfFe53aa74c91701719";
 export const POST_MANAGER_ADDRESS = "0xf1B4601610877c62C55de3B50edC825452cF2dC2";
 export const DIVA_TOKEN_ADDRESS = "0xb9BDfEeEd0868a933180Ae5162e4DBdbAc5bF3F0";
 
-
-
 export const MOCK_USDC_ABI = [
     {
         "inputs": [],
