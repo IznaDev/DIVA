@@ -90,7 +90,7 @@ export function PostProvider({ children }: { children: ReactNode }) {
     if (isConnected && publicClient) {
       fetchPosts();
     }
-  }, [isConnected, publicClient, fetchPosts]);
+  }, [isConnected, publicClient]);
 
   return (
     <PostContext.Provider value={{ posts, addPost, fetchPosts }}>

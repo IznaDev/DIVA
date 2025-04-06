@@ -1,4 +1,4 @@
-// types.d.ts
+// global.d.ts
 // Ce fichier contient les déclarations de types globaux pour l'application
 
 // Types pour les paramètres et les callbacks
