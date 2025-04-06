@@ -181,19 +181,6 @@ export const MOCK_USDC_ABI = [
         "type": "function"
     },
     {
-        "inputs": [
-            {
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256"
-            }
-        ],
-        "name": "burn",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
         "inputs": [],
         "name": "decimals",
         "outputs": [
@@ -919,19 +906,6 @@ export const VOTING_CONTRACT_ABI = [
         "type": "function"
     },
     {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "_voter",
-                "type": "address"
-            }
-        ],
-        "name": "registerVoterForTesting",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
         "inputs": [],
         "name": "renounceOwnership",
         "outputs": [],
@@ -955,6 +929,25 @@ export const VOTING_CONTRACT_ABI = [
             }
         ],
         "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "x",
+                "type": "uint256"
+            }
+        ],
+        "name": "sqrt",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "y",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "pure",
         "type": "function"
     },
     {
@@ -1852,19 +1845,6 @@ export const DIVA_TOKEN_ABI = [
             }
         ],
         "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "conversionRate",
-        "outputs": [
-            {
-                "internalType": "uint8",
-                "name": "",
-                "type": "uint8"
-            }
-        ],
-        "stateMutability": "pure",
         "type": "function"
     },
     {

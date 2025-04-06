@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { VOTING_CONTRACT_ADDRESS, VOTING_CONTRACT_ABI, MOCK_USDC_ADDRESS, MOCK_USDC_ABI, DIVA_TOKEN_ADDRESS, DIVA_TOKEN_ABI, POST_MANAGER_ADDRESS, POST_MANAGER_ABI } from '@/constants';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, usePublicClient, BaseError } from 'wagmi';
-import { parseEther, formatEther, parseAbiItem } from 'viem';
+import { parseEther, formatEther, parseAbiItem, formatUnits, parseUnits } from 'viem';
 import Image from 'next/image';
 import { ethers } from 'ethers';
 import { useToast } from "@/hooks/use-toast";
@@ -310,14 +310,15 @@ export default function PurchaseDivasButton() {
         provider
       );
 
-      // Calculer la deadline (1 heure dans le futur)
-      const deadline = Math.floor(Date.now() / 1000) + 3600;
+      // Calculer la deadline (1 an dans le futur au lieu de 1 heure)
+      // Cela permet d'éviter les problèmes lorsque le temps est avancé pour finaliser un vote
+      const deadline = Math.floor(Date.now() / 1000) + 31536000; // 365 jours
 
       // Obtenir le nonce actuel pour l'adresse de l'utilisateur
       const nonce = await mockUsdcContract.nonces(address);
 
       // Convertir le montant en wei
-      const amountInWei = parseEther(amount);
+      const amountInWei = parseUnits(amount, 6);
 
       // Définir le domaine EIP-712
       const domain = {
@@ -398,8 +399,8 @@ export default function PurchaseDivasButton() {
         provider
       );
 
-      // Calculer la deadline (1 heure dans le futur)
-      const deadline = Math.floor(Date.now() / 1000) + 3600;
+      // Calculer la deadline (1 an dans le futur)
+      const deadline = Math.floor(Date.now() / 1000) + 31536000;
 
       // Obtenir le nonce actuel pour l'adresse de l'utilisateur
       const nonce = await divaTokenContract.nonces(address);
@@ -478,12 +479,12 @@ export default function PurchaseDivasButton() {
       setError(null);
       setSuccess(false);
 
-      // Convertir le montant en wei (18 décimales)
-      const amountInWei = parseEther(amount);
-      console.log('Montant en wei:', amountInWei.toString());
+      // Convertir le montant en unités avec 6 décimales (standard pour USDC)
+      const amountInUnits = parseUnits(amount, 6);
+      console.log('Montant en unités (6 décimales):', amountInUnits.toString());
 
       // Vérifier que l'utilisateur a suffisamment de USDC
-      if (usdcBalance < amountInWei) {
+      if (usdcBalance < amountInUnits) {
         setError('Solde USDC insuffisant. Utilisez le faucet pour obtenir plus de tokens.');
         setIsLoading(false);
         return;
@@ -495,7 +496,7 @@ export default function PurchaseDivasButton() {
       // Afficher les informations de débogage
       console.log('Tentative d\'achat de tokens DIVA avec les paramètres suivants:');
       console.log('- Adresse de l\'acheteur:', address);
-      console.log('- Montant:', amountInWei.toString());
+      console.log('- Montant:', amountInUnits.toString());
       console.log('- Deadline:', deadline.toString());
       console.log('- Signature v:', v);
       console.log('- Signature r:', r);
@@ -506,7 +507,7 @@ export default function PurchaseDivasButton() {
         address: VOTING_CONTRACT_ADDRESS,
         abi: VOTING_CONTRACT_ABI,
         functionName: 'purchaseDivas',
-        args: [amountInWei, deadline, v, r, s],
+        args: [amountInUnits, deadline, v, r, s],
       });
 
       console.log('Transaction envoyée, hash:', purchaseHash);
@@ -734,7 +735,7 @@ export default function PurchaseDivasButton() {
 
             {address && balance !== null && balance !== undefined && (
               <div className="text-white mb-2">
-                <p>Votre solde: <span className="font-bold">{formatEther(balance as bigint)} MockUSDC</span></p>
+                <p>Votre solde: <span className="font-bold">{formatUnits(balance as bigint, 6)} MockUSDC</span></p>
               </div>
             )}
 
@@ -745,8 +746,8 @@ export default function PurchaseDivasButton() {
               <Input
                 id="amount"
                 type="number"
-                min="0.01"
-                step="0.01"
+                min="1"
+                step="1"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 className="border-gray-700 bg-[#1A1927]/50 text-white"

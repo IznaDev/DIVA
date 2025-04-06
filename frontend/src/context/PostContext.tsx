@@ -65,7 +65,7 @@ export function PostProvider({ children }: { children: ReactNode }) {
       const logs = await publicClient.getLogs({
         address: POST_MANAGER_ADDRESS as `0x${string}`,
         event: parseAbiItem('event PostCreated(uint256 indexed postId, address indexed poster, string contentUrl)'),
-        fromBlock: 0n,
+        fromBlock: BigInt(0),
         toBlock: 'latest'
       });
 

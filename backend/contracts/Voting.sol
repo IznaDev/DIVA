@@ -70,7 +70,7 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
             "USDC transfer failed"
         );
 
-        uint256 _divaAmount = _amount * 10 ** 12 * divaToken.conversionRate();
+        uint256 _divaAmount = _amount * 10 ** 12;
         require(
             divaToken.mint(msg.sender, _divaAmount),
             "Minting Divas failed"
@@ -176,16 +176,10 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
             .getPostStatus(_postId);
         require(exists, "Post does not exist");
 
-        // 2. Finaliser le vote si ce n'est pas déjà fait
         if (status == PostManager.VoteStatus.Active) {
-            try postManager.finalizeVote(_postId) {
-                // Succès de la finalisation
-            } catch {
-                revert("Cannot finalize vote yet");
-            }
+            postManager.finalizeVote(_postId);
         }
 
-        // 3. Vérifier que le vote est bien finalisé
         (, status) = postManager.getPostStatus(_postId);
         require(
             status == PostManager.VoteStatus.Completed,
@@ -480,7 +474,7 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
      * @param x Le nombre dont on veut la racine carrée
      * @return y La racine carrée entière de x
      */
-    function sqrt(uint256 x) internal pure returns (uint256 y) {
+    function sqrt(uint256 x) public pure returns (uint256 y) {
         if (x == 0) return 0;
         else if (x <= 3) return 1;
 
@@ -491,9 +485,5 @@ contract Voting is Ownable, ReentrancyGuard, EIP712 {
             y = z;
             z = (x / z + z) / 2;
         }
-    }
-
-    function registerVoterForTesting(address _voter) external onlyOwner {
-        postManager.registerVoter(_voter);
     }
 }

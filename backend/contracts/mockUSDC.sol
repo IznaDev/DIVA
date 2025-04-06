@@ -23,11 +23,11 @@ contract MockUSDC is ERC20, Ownable, ERC20Permit {
 
     constructor() ERC20("MockUSDC", "MUSDC") ERC20Permit("MockUSDC") {
         // Mint initial supply to the deployer (1 million USDC)
-        _mint(msg.sender, 1000 * 10 ** 18);
+        _mint(msg.sender, 1000 * 10 ** 6);
         transferOwnership(msg.sender);
 
         for (uint256 i = 0; i < TEST_ACCOUNTS_LENGTH; i++) {
-            mint(test_accounts[i], 1000 * 10 ** 18);
+            mint(test_accounts[i], 1000 * 10 ** 6);
         }
     }
 
@@ -45,13 +45,5 @@ contract MockUSDC is ERC20, Ownable, ERC20Permit {
      */
     function decimals() public pure override returns (uint8) {
         return 6;
-    }
-
-    /**
-     * @dev Burns tokens from the caller's account
-     * @param amount The amount of tokens to burn
-     */
-    function burn(uint256 amount) external {
-        _burn(msg.sender, amount);
     }
 }

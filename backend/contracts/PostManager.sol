@@ -88,7 +88,7 @@ contract PostManager is Ownable {
     function createPost(
         address _poster,
         string calldata _contentUrl
-    ) external returns (uint256) {
+    ) external onlyOwner returns (uint256) {
         bytes32 _urlHash = keccak256(abi.encodePacked(_contentUrl));
         uint256 _postId = uint256(_urlHash);
 
@@ -112,7 +112,7 @@ contract PostManager is Ownable {
         VoteOption _vote,
         uint256 _stakeAmount,
         address _voters
-    ) external {
+    ) external onlyOwner {
         require(posts[_postId].urlExists, "Post does not exist");
 
         require(
@@ -171,7 +171,7 @@ contract PostManager is Ownable {
         emit VoteCast(_postId, _voters, _vote, _stakeAmount);
     }
 
-    function finalizeVote(uint256 _postId) external {
+    function finalizeVote(uint256 _postId) external onlyOwner {
         Post storage post = posts[_postId];
         require(post.status == VoteStatus.Active, "Vote already finalized");
 
@@ -186,30 +186,33 @@ contract PostManager is Ownable {
         }
 
         isTimeExpired = block.timestamp >= deadline;
-
-        // Autoriser la finalisation si le temps est écoulé ou si l'appel vient du contrat owner
         require(
             isTimeExpired || msg.sender == owner(),
-            "Voting period not ended yet"
+            "Cannot finalize vote yet"
         );
-
         post.status = VoteStatus.Completed;
 
         VoteOption result;
         uint256 totalVotes = post.totalTrueReputation +
             post.totalFakeReputation;
 
-        uint256 trueVotes = (post.totalTrueReputation * 100) / totalVotes;
-
-        if (trueVotes > 50) {
-            result = VoteOption.True;
-            emit VoteCompleted(_postId, result, trueVotes);
-        } else if (trueVotes < 50) {
-            result = VoteOption.Fake;
-            emit VoteCompleted(_postId, result, 100 - trueVotes);
-        } else {
+        // Si aucun vote n'a été émis, considérer le résultat comme nul
+        if (totalVotes == 0) {
             result = VoteOption.None;
-            emit VoteCompleted(_postId, result, 50); // No clear majority
+            emit VoteCompleted(_postId, result, 50); // Pas de votes
+        } else {
+            uint256 trueVotes = (post.totalTrueReputation * 100) / totalVotes;
+
+            if (trueVotes > 50) {
+                result = VoteOption.True;
+                emit VoteCompleted(_postId, result, trueVotes);
+            } else if (trueVotes < 50) {
+                result = VoteOption.Fake;
+                emit VoteCompleted(_postId, result, 100 - trueVotes);
+            } else {
+                result = VoteOption.None;
+                emit VoteCompleted(_postId, result, 50); // No clear majority
+            }
         }
     }
 

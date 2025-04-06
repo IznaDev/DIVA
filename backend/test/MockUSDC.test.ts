@@ -2,6 +2,7 @@ import { ethers } from "hardhat";
 import { expect } from "chai";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { deployMockUSDC } from "./utils/fixtures";
+import { parseEther } from "ethers";
 
 let mockUSDC: any;
 let owner: any;
@@ -28,7 +29,7 @@ describe("MockUSDC contract tests:", function () {
 
         it("should have initial total supply", async function () {
             // 1000 pour le déployeur + 1000 pour chacune des 10 adresses de test
-            expect(await mockUSDC.totalSupply()).to.equal(BigInt(11000 * 10 ** 18));
+            expect(await mockUSDC.totalSupply()).to.equal(BigInt(11000 * 10 ** 6));
         })
     })
 
@@ -158,5 +159,40 @@ describe("MockUSDC contract tests:", function () {
                 console.log("Skipping domain separator test - function not exposed");
             }
         })
+    })
+
+    describe("Revert tests", function () {
+        let domain: any;
+        let types: any;
+        let signer3: any;
+        let signer4: any;
+        let voter1Wallet: any;
+
+        before(async function () {
+            const chainId = (await ethers.provider.getNetwork()).chainId;
+            domain = {
+                name: "MockUSDC",
+                version: "1",
+                chainId,
+                verifyingContract: await mockUSDC.getAddress(),
+            };
+            types = {
+                Permit: [
+                    { name: "owner", type: "address" },
+                    { name: "spender", type: "address" },
+                    { name: "value", type: "uint256" },
+                    { name: "nonce", type: "uint256" },
+                    { name: "deadline", type: "uint256" },
+                ],
+            };
+
+            const privateKey = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+            voter1Wallet = new ethers.Wallet(privateKey, ethers.provider);
+            // Utiliser les signers disponibles via hardhat au lieu de createRandom
+
+        });
+
+
+
     })
 })

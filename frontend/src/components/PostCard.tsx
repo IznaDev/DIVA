@@ -174,8 +174,9 @@ export default function PostCard({ id, url, poster, timestamp }: PostCardProps) 
         provider
       );
 
-      // Calculer la deadline (1 heure dans le futur)
-      const deadline = Math.floor(Date.now() / 1000) + 3600;
+      // Calculer la deadline (1 an dans le futur au lieu de 1 heure)
+      // Cela permet d'éviter les problèmes lorsque le temps est avancé pour finaliser un vote
+      const deadline = Math.floor(Date.now() / 1000) + 31536000; // 365 jours
 
       // Obtenir le nonce actuel pour l'adresse de l'utilisateur
       const nonce = await divaContract.nonces(address);

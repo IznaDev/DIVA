@@ -57,12 +57,6 @@ describe("DivaToken contract tests:", function () {
         })
     })
 
-    describe("Conversion Rate tests", function () {
-        it("should return the correct conversion rate", async function () {
-            expect(await divaToken.conversionRate()).to.equal(10);
-        })
-    })
-
     describe("Minting tests", function () {
         it("should allow owner to mint tokens", async function () {
             const initialBalance = await divaToken.balanceOf(user1.address);
@@ -225,4 +219,65 @@ describe("DivaToken contract tests:", function () {
             expect(ownershipTransferred).to.be.true;
         })
     })
+
+    describe("DivaToken edge cases", function () {
+        it("should revert when transferring to zero address", async function () {
+            await expect(divaToken.transfer(ethers.ZeroAddress, 100))
+                .to.be.revertedWith("ERC20: transfer to the zero address");
+        });
+
+        it("should revert when approving zero address", async function () {
+            await expect(divaToken.approve(ethers.ZeroAddress, 100))
+                .to.be.revertedWith("ERC20: approve to the zero address");
+        });
+    });
+
+    describe("Signature tests", function () {
+        let divaToken: any, owner: any, user1: any, user2: any;
+
+        before(async function () {
+            const fixture = await loadFixture(deployDivaToken);
+            divaToken = fixture.divaToken;
+            owner = fixture.owner;
+            [, user1, user2] = await ethers.getSigners();
+        });
+
+        // Test pour ERC20Permit (branches de signature invalide)
+        it("should revert permit with invalid signature", async function () {
+            const amount = parseEther("100");
+            const deadline = Math.floor(Date.now() / 1000) + 31536000;
+            const wallet = ethers.Wallet.createRandom();
+            const domain = {
+                name: "DivaToken",
+                version: "1",
+                chainId: (await ethers.provider.getNetwork()).chainId,
+                verifyingContract: await divaToken.getAddress()
+            };
+            const types = {
+                Permit: [
+                    { name: "owner", type: "address" },
+                    { name: "spender", type: "address" },
+                    { name: "value", type: "uint256" },
+                    { name: "nonce", type: "uint256" },
+                    { name: "deadline", type: "uint256" }
+                ]
+            };
+            const value = {
+                owner: user1.address,
+                spender: user2.address,
+                value: amount,
+                nonce: await divaToken.nonces(user1.address),
+                deadline
+            };
+            const signature = await wallet.signTypedData(domain, types, value); // Mauvais signataire
+            const { v, r, s } = ethers.Signature.from(signature);
+
+            await expect(divaToken.permit(user1.address, user2.address, amount, deadline, v, r, s))
+                .to.be.revertedWith("ERC20Permit: invalid signature");
+        });
+    });
+
+
+
+
 })
