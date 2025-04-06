@@ -95,14 +95,22 @@ export default function PurchaseDivasButton() {
 
   //ajout d'un état pour suivre les transactions déjà traitées
   const [processedTransactions] = useState<string[]>(() => {
-    // Récupérer les transactions déjà traitées du stockage local
-    const savedTransactions = localStorage.getItem('processedDivaTransactions');
-    return savedTransactions ? JSON.parse(savedTransactions) : [];
+    // Vérifier si le code s'exécute côté client
+    if (typeof window !== 'undefined') {
+      // Récupérer les transactions déjà traitées du stockage local
+      const savedTransactions = localStorage.getItem('processedDivaTransactions');
+      return savedTransactions ? JSON.parse(savedTransactions) : [];
+    }
+    // Retourner un tableau vide si côté serveur
+    return [];
   });
 
   // Sauvegarder les transactions traitées dans le stockage local
   useEffect(() => {
-    localStorage.setItem('processedDivaTransactions', JSON.stringify(processedTransactions));
+    // Vérifier si le code s'exécute côté client
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('processedDivaTransactions', JSON.stringify(processedTransactions));
+    }
   }, [processedTransactions]);
 
   useEffect(() => {
