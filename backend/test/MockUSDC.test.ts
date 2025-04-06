@@ -29,7 +29,7 @@ describe("MockUSDC contract tests:", function () {
 
         it("should have initial total supply", async function () {
             // 1000 pour le déployeur + 1000 pour chacune des 10 adresses de test
-            expect(await mockUSDC.totalSupply()).to.equal(BigInt(11000 * 10 ** 6));
+            expect(await mockUSDC.totalSupply()).to.equal(BigInt(12000 * 10 ** 6));
         })
     })
 

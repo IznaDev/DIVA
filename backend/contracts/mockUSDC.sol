@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 /// @title MockUSDC
 /// @notice Token ERC20 simulant l'USDC pour les tests
 contract MockUSDC is ERC20, Ownable, ERC20Permit {
-    uint256 constant TEST_ACCOUNTS_LENGTH = 10;
+    uint256 constant TEST_ACCOUNTS_LENGTH = 11;
 
     address[TEST_ACCOUNTS_LENGTH] public test_accounts = [
         address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266),
@@ -20,7 +20,8 @@ contract MockUSDC is ERC20, Ownable, ERC20Permit {
         address(0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65),
         address(0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc),
         address(0x976EA74026E726554dB657fA54763abd0C3a0aa9),
-        address(0x14dC79964da2C08b23698B3D3cc7Ca32193d9955)
+        address(0x14dC79964da2C08b23698B3D3cc7Ca32193d9955),
+        address(0x0233A0dF7a892a8fdC84a90f0DaFfdE48235A43B)
     ];
 
     /// @notice Initialise le token et distribue l'approvisionnement initial
