@@ -2,10 +2,6 @@
 
 Le Projet DIVA est une plateforme décentralisée (dApp) qui factcheck les contenus web (images, vidéos, etc.) postés par les utilisateurs, en laissant la parole aux utilisateurs.
 
-## Déployé sur Vercel
-
-https://diva-ten.vercel.app/
-
 ## Backend
 
 Les smarts contracts ont été déployé sur le testnet Amoy de Polygon:
